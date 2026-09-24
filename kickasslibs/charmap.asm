@@ -9,7 +9,6 @@
 .const CM_MAP_LEVEL_DATA_ADDR = $3a00      // where the map file from charpad gets loaded - 6000 bytes for a 240x25 map
 .const CM_CHARSET_ATTRIB_DATA_ADDR = $5400  // where the charset color file from charpad gets loaded - 256 bytes used
 .const CM_CHARSET_CHAR_DATA_ADDR = $2800   // where the charset file from charpad gets loaded - 2048 bytes used
-.const CODE_START_ADDR = $0810          // where the code starts
 .const CM_LOOKUP_TABLES_ADDR = $1000       // where lookup tables are loaded
 
 //----------------------------------------------------------------------------------------------------------------------------
@@ -45,26 +44,25 @@
 // init all of the memory pointers used to point to various data sections to the start of their respective memory areas
 //----------------------------------------------------------------------------------------------------------------------------
 CMInitMemoryPointers:
-        jsr CMResetScreenPointers
-        jsr CMResetMapPointers
-        jsr CMResetTilePointers
-        jsr CMResetPrintCharPointers
+        CMResetMapPointers()
+        CMResetTilePointers()
+        CMResetPrintCharPointers()
         rts
-CMResetTilePointers:
+.macro CMResetTilePointers() {
         // init map tile data pointer to point to the start of level_chars
         lda #<CM_MAP_TILES_DATA_ADDR
         sta cm_MapTileDataPointer
         lda #>CM_MAP_TILES_DATA_ADDR
         sta cm_MapTileDataPointer + 1
-        rts
-CMResetScreenPointers:
-CMResetMapPointers:
+        //rts
+}
+.macro CMResetMapPointers() {
         // init map color pointer to point to the start of level colors
         lda #<CM_CHARSET_ATTRIB_DATA_ADDR
         sta cm_CurrentMapCharColorPointer
         lda #>CM_CHARSET_ATTRIB_DATA_ADDR
         sta cm_CurrentMapCharColorPointer + 1
-CMResetMapCharPointer:
+
         // init map char pointer to point to the start of level chars
         lda #<CM_MAP_LEVEL_DATA_ADDR
         sta cm_CurrentMapCharPointer
@@ -91,8 +89,9 @@ CMResetMapCharPointer:
         lda cm_CurrentMapCharPointer+1  // Load high byte
         adc cm_calcTemp4           // Add the carry flag (0 or 1)
         sta cm_CurrentMapCharPointer+1  //   Save high byte back
-        rts
-CMResetPrintCharPointers:
+        //rts
+}
+.macro CMResetPrintCharPointers() {
         // reset the pointers for where to write to on the screen
         lda #<(VIC_SCREEN_CHAR_MEMORY_ADDR + CM_DISPLAYED_MAP_X + (VIC_SCREEN_WIDTH_COLS * CM_DISPLAYED_MAP_Y))
         sta cm_CurrentScreenCharPointer
@@ -104,7 +103,8 @@ CMResetPrintCharPointers:
         sta cm_CurrentScreenCharColorPointer
         lda #>(VIC_SCREEN_COLOR_MEMORY_ADDR + CM_DISPLAYED_MAP_X +(VIC_SCREEN_WIDTH_COLS * CM_DISPLAYED_MAP_Y))
         sta cm_CurrentScreenCharColorPointer + 1
-        rts
+        //rts
+}
 
 //----------------------------------------------------------------------------------------------------------------------------
 // init zero-page variables
@@ -143,9 +143,9 @@ CMInitZeroPageVariables:
 // render the map on to the screen
 //----------------------------------------------------------------------------------------------------------------------------
 CMDrawMapWindowed: {
-        jsr CMResetPrintCharPointers
-        jsr CMResetMapPointers
-        jsr CMResetTilePointers
+        CMResetPrintCharPointers()
+        CMResetMapPointers()
+        CMResetTilePointers()
 
         ldy cm_CurrentCharScrollYPosition      // instead of starting at 0 we start at how far down we are scrolled #$00
         sty cm_CurrentMapCharY            // store the map char y position we are going to read from
@@ -163,7 +163,7 @@ drawmap_windowed_col:
         lda (cm_CurrentMapCharPointer), y // load the map char
         sta (cm_CurrentScreenCharPointer), y // place map char on screen
 
-       // use indirect indexing with y register to place column color on screen
+        // use indirect indexing with y register to place column color on screen
         ldy #$00
         lda (cm_CurrentMapCharPointer), y // load the map char code
         tay // move it into y reg
@@ -224,7 +224,6 @@ drawmap_windowed_col:
         sta cm_calcTemp2
         jsr CMAddTwo8Bit
 
-        //cpx #DISP_MAP_CHAR_WIDTH // have we reached the last display column?
         cpx cm_calcTemp2 // have we reached the last display column?
         bne drawmap_windowed_col // if not reached the last column, continue the column loop
 
@@ -249,21 +248,18 @@ drawmap_windowed_col:
         //-------------------------------------------------
         // check if we have reached the last row of the map display
         //-------------------------------------------------
-        //cpy #DISP_MAP_CHAR_HEIGHT //  have reached the last row
         cpy cm_calcTemp2 //  have reached the last row
         bne drawmap_windowed_row
         rts
 
 MoveMapAndPrintPointersForNewRow:
         // Starting a new row set the X values to the start of the row
-        lda cm_CurrentCharScrollXPosition      // instead of starting at 0 we start at how far right we are scrolled #$00
-        sta cm_CurrentMapCharX            // store the map char y position we are going to read from
+        lda cm_CurrentCharScrollXPosition               // instead of starting at 0 we start at how far right we are scrolled #$00
+        sta cm_CurrentMapCharX                          // store the map char y position we are going to read from
 
         lda #CM_DISPLAYED_MAP_X
-        sta cm_CurrentDisplayX          //dispPrintX is always DISPLAY_MAP_X based
+        sta cm_CurrentDisplayX                          // cm_CurrentDisplayX is always CM_DISPLAYED_MAP_X based
 
-        //lda mapCharY 
-        //beq row_zero_skip                          // nothing to do for row zero
         lda cm_CurrentMapCharY
         cmp cm_CurrentCharScrollYPosition
         beq skipsub2
@@ -271,24 +267,24 @@ MoveMapAndPrintPointersForNewRow:
         // move the map_char_pointer to the start of the correct row
         // first add the map char width, which get us into the next row
         clc
-        lda cm_CurrentMapCharPointer            // Load pointer low byte
-        adc #CM_MAP_CHAR_WIDTH             // Add width in bytes of the map 
-        sta cm_CurrentMapCharPointer            // Store back to pointer low byte
-        lda cm_CurrentMapCharPointer+1          // Load pointer high byte
-        adc #$00                        // Add 0 high byte (plus any carry)
-        sta cm_CurrentMapCharPointer+1          // Store back to pointer high byte
+        lda cm_CurrentMapCharPointer                    // Load pointer low byte
+        adc #CM_MAP_CHAR_WIDTH                          // Add width in bytes of the map 
+        sta cm_CurrentMapCharPointer                    // Store back to pointer low byte
+        lda cm_CurrentMapCharPointer+1                  // Load pointer high byte
+        adc #$00                                        // Add 0 high byte (plus any carry)
+        sta cm_CurrentMapCharPointer+1                  // Store back to pointer high byte
 
         // next subtract the display map width to get to the correct column within the row
         lda cm_CurrentMapCharY
         cmp cm_CurrentCharScrollYPosition
         beq skipsub1
-        sec                             // Set carry for subtraction
-        lda cm_CurrentMapCharPointer            // Load low byte of pointer
-        sbc #CM_DISPLAYED_MAP_CHAR_WIDTH        // Subtract display map char width
-        sta cm_CurrentMapCharPointer            // Store back to low byte
-        lda cm_CurrentMapCharPointer+1          // Load high byte of pointer
-        sbc #$00                        // Subtract 0 high byte (with borrow)
-        sta cm_CurrentMapCharPointer+1          // Store back to high byte
+        sec                                             // Set carry for subtraction
+        lda cm_CurrentMapCharPointer                    // Load low byte of pointer
+        sbc #CM_DISPLAYED_MAP_CHAR_WIDTH                // Subtract display map char width
+        sta cm_CurrentMapCharPointer                    // Store back to low byte
+        lda cm_CurrentMapCharPointer+1                  // Load high byte of pointer
+        sbc #$00                                        // Subtract 0 high byte (with borrow)
+        sta cm_CurrentMapCharPointer+1                  // Store back to high byte
 skipsub1:
         // move the print char pointer to the start of the correct row on screen
         // first add the screen char width, which get us into the next row
@@ -296,30 +292,39 @@ skipsub1:
         cmp cm_CurrentCharScrollYPosition
         beq skipsub2
         clc
-        lda cm_CurrentScreenCharPointer          // Load pointer low byte
-        adc #VIC_SCREEN_WIDTH_COLS      // Add screen char width
-        sta cm_CurrentScreenCharPointer          // Store back to pointer low byte
-        lda cm_CurrentScreenCharPointer+1        // Load pointer high byte
-        adc #$00                        // Add 0 high byte (plus any carry)
-        sta cm_CurrentScreenCharPointer+1        // Store back to pointer high byte
+        lda cm_CurrentScreenCharPointer                 // Load pointer low byte
+        adc #VIC_SCREEN_WIDTH_COLS                      // Add screen char width
+        sta cm_CurrentScreenCharPointer                 // Store back to pointer low byte
+        lda cm_CurrentScreenCharPointer+1               // Load pointer high byte
+        adc #$00                                        // Add 0 high byte (plus any carry)
+        sta cm_CurrentScreenCharPointer+1               // Store back to pointer high byte
 
         // next subtract the display map width to get to the correct column within the row
         lda cm_CurrentMapCharY
         cmp cm_CurrentCharScrollYPosition
         beq skipsub2
-        sec                             // Set carry for subtraction
-        lda cm_CurrentScreenCharPointer          // Load low byte of pointer
-        sbc #CM_DISPLAYED_MAP_CHAR_WIDTH        // Subtract total x offset
-        sta cm_CurrentScreenCharPointer          // Store back to low byte
-        lda cm_CurrentScreenCharPointer+1        // Load high byte of pointer
-        sbc #$00                        // Subtract 0 high byte (with borrow)
-        sta cm_CurrentScreenCharPointer+1        // Store back to high byte
+        sec                                             // Set carry for subtraction
+        lda cm_CurrentScreenCharPointer                 // Load low byte of pointer
+        sbc #CM_DISPLAYED_MAP_CHAR_WIDTH                // Subtract total x offset
+        sta cm_CurrentScreenCharPointer                 // Store back to low byte
+        lda cm_CurrentScreenCharPointer+1               // Load high byte of pointer
+        sbc #$00                                        // Subtract 0 high byte (with borrow)
+        sta cm_CurrentScreenCharPointer+1               // Store back to high byte
 skipsub2:
+        // instead of recalculating the color pointer from scratch, we just add the color
+        // memory offset to the cm_CurrentScreenCharPointer because they are the exact 
+        // same size
+        clc
+        lda cm_CurrentScreenCharPointer                 // Load pointer low byte
+        adc #<$D400                                     // Add product low byte
+        sta cm_CurrentScreenCharColorPointer            // Store back to pointer low byte
+        lda cm_CurrentScreenCharPointer+1               // Load pointer high byte
+        adc #>$D400                                     // Add 0 high byte (plus any carry)
+        sta cm_CurrentScreenCharColorPointer+1          // Store back to pointer high byte
 
-        // TODO: this could be replaced by adding offest to print_char_pointer to get us to the saem place in the color memory
         // move the print char pointer to the start of the correct row on screen
         // first add the screen char width, which get us into the next row
-        lda cm_CurrentMapCharY
+/*        lda cm_CurrentMapCharY
         cmp cm_CurrentCharScrollYPosition
         beq skipsub3
         clc
@@ -341,6 +346,7 @@ skipsub2:
         lda cm_CurrentScreenCharColorPointer+1   // Load high byte of pointer
         sbc #$00                         // Subtract 0 high byte (with borrow)
         sta cm_CurrentScreenCharColorPointer+1   // Store back to high byte
+*/
 skipsub3:
 row_zero_skip:
         rts

@@ -17,6 +17,8 @@
 .const CM_DISPLAYED_MAP_TILE_WIDTH = 40     // width in tiles of the displayed map area
 .const CM_DISPLAYED_MAP_TILE_HEIGHT = 25    // height in tiles of the displayed map area
 
+.const CODE_START_ADDR = $0810          // where the code starts
+
 #import "./kickasslibs/charmap_import.asm" // import the Charmap processing code
 
 //----------------------------------------------------------------------------------------------------------------------------
@@ -54,24 +56,27 @@ BasicUpstart2(start)
 //----------------------------------------------------------------------------------------------------------------------------
 start:
         KillBASIC()                                  // Disable BASIC to free up RAM
+        KillKernal()                                 // Disable KERNAL ROM to free up RAM
+        KillCharacterGenerator()                     // Disable Character Generator ROM to free up RAM
         ClearScreen($5b)
 
         sei
-        SetColors(BLACK, BLACK, ORANGE, LIGHT_GREEN, BROWN)                    // Set border and background colors that get used for the map chars
+        SetColors(YELLOW, BLACK, ORANGE, LIGHT_GREEN, BROWN)                    // Set border and background colors that get used for the map chars
         SetMulticolorMode()                          // Enable multicolor mode
         //Set38ColumnMode()                          // Enable 38-column mode
         SetLowerCaseCharsetMode()                    // make sure we using a charset with upper and lower case characters for the screen codes
         SetCharsetAddress(VIC_SCREEN_CHAR_BANK_OFFSET_10240)   // Set the address of the character set data this offset matches CHARSET_CHAR_DATA_ADDR $2800
 
+// need to get the raster IRQ routines working.        
+//        InstallRasterIRQHandlerNotChained(handler, 150, false)
         CMInitCharMapCode()
 
 loop:
         lda #$00
         sta smx
-
 loop1:
         CMSetMapXCharOffset(smx)
-        jsr sync_vblank
+        //jsr sync_vblank
         jsr CMDrawMapWindowed
 
         ldx smx
@@ -81,7 +86,6 @@ loop1:
         bne loop1
 
         jmp loop                // Main loop
-
 
 //--------------------------------------------
 // Wait for vertical blank

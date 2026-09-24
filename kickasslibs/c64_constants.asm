@@ -2,6 +2,16 @@
 // General constants for C64 programming
 // =============================================================================
 
+.const REG_MEMORY_CONFIGURATION_ADDR = $01 // the address of the memory configuration register in the C64 memory map
+.const RMC_DEFAULT_BITS = $37                    // default value for the memory configuration register
+.const RMC_LORAM_BIT = $01                      // LORAM bit in the memory configuration register. Controls the memory block at $A000–$BFFF. 1 = BASIC ROM visible, 0 = RAM visible
+.const RMC_HIRAM_BIT = $02                      // HIRAM bit in the memory configuration register. Controls the memory block at $E000–$FFFF. 1 = KERNAL ROM visible, 0 = RAM visible
+.const RMC_CHAREN_BIT = $04                     // CHAREN bit in the memory configuration register. Controls the memory block at $D000–$DFFF. 1 = I/O registers (VIC-II, SID, CIAs) visible, 0 = Character Generator ROM visible
+.const RMC_CASSETTE_DATA_OUPUT_BIT = $08    // CASSETTE DATA OUTPUT bit in the memory configuration register. Send data to the cassette
+.const RMC_CASSETTE_DATA_INPUT_BIT = $10    // CASSETTE DATA INPUT bit in the memory configuration register. Controls the cassette data input line. 1 = no button pressed, 0 = a button is pressed
+.const RMC_CASSETTE_MOTOR_BIT = $20         // CASSETTE MOTOR bit in the memory configuration register. Controls the cassette motor. 1 = motor off, 0 = motor on
+.const RMC_UNUSED_BIT = $C0                 // UNUSED bit in the memory configuration register. Typically not used, reserved for future expansion
+
 //.namespace VIC { //D000-D02E
 //    .namespace SCREEN {
         .const VIC_SCREEN_CHAR_BANK_OFFSET_0000 = %0000 // 0 $0000-$07FF (0-2047) First 2KB of bank
@@ -148,8 +158,12 @@
         .const VSRIFB_RASTER_COMPARE_BIT = $01 // the bit indicating that the raster compare has occurred, 1=compare occurred, 0=not occurred
     //}
 
-    .const VIC_SCREEN_REG_IRQ_MASK_ADDR = $D01A // the register used to hold the interrupt mask in the VIC-II chip
-
+    .const VIC_IRQ_MASK_REG_ADDR = $D01A // the register used to hold the interrupt mask in the VIC-II chip
+    .const VIMRB_RASTER_IRQ_BIT = $01 // the bit used to enable raster interrupts in the VIC-II interrupt mask register
+    .const VIMRB_SPRITE_COLLISION_IRQ_BIT = $02 // the bit used to enable sprite to background collision interrupts in the VIC-II interrupt mask register
+    .const VIMRB_SPRITE_SPRITE_COLLISION_IRQ_BIT = $04 // the bit used to enable sprite to sprite collision interrupts in the VIC-II interrupt mask register
+    .const VIMRB_LIGHTPEN_IRQ_BIT = $08 // the bit used to enable lightpen interrupts in the VIC-II interrupt mask register
+    .const VIMRB_UNUSED_BIT = $F0 // the unused bit in the VIC-II interrupt mask register
 //}
 
 .namespace SID { //D400-D7FF

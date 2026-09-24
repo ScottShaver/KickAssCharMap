@@ -1,0 +1,20 @@
+Output dir: D:\devprojects\c64\KickAssCharMap\kickasslibs\bin
+parsing
+Got 36 errors and 0 warnings while executing:
+  (D:\devprojects\c64\KickAssCharMap\kickasslibs\charmap.asm 84:14) Error: Unknown symbol 'CM_MAP_CHAR_WIDTH'
+  (D:\devprojects\c64\KickAssCharMap\kickasslibs\charmap.asm 86:13) Error: Unknown symbol 'CMMultiplyTwo8bit'
+  (D:\devprojects\c64\KickAssCharMap\kickasslibs\charmap.asm 97:16) Error: Unknown symbol 'VIC_SCREEN_CHAR_MEMORY_ADDR'
+  (D:\devprojects\c64\KickAssCharMap\kickasslibs\charmap.asm 97:46) Error: Unknown symbol 'CM_DISPLAYED_MAP_X'
+  (D:\devprojects\c64\KickAssCharMap\kickasslibs\charmap.asm 97:68) Error: Unknown symbol 'VIC_SCREEN_WIDTH_COLS'
+  ...
+
+        // adjust the map char pointer by the Y offset, how far down we are scrolled
+        lda cm_CurrentCharScrollYPosition
+        sta cm_calcTemp1
+        lda #CM_MAP_CHAR_WIDTH
+             ^
+
+Error: Unknown symbol 'CM_MAP_CHAR_WIDTH'
+at line 84, column 14 in charmap.asm
+
+

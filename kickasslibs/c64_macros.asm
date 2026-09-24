@@ -3,9 +3,72 @@
 // =============================================================================
 
 // =============================================================================
-// 
+// GTFF - if this is true we will set bit 7 in $D011 because you are telling us the scanline is greater than 255
+// =============================================================================
+.macro InstallRasterIRQHandlerNotChained(handler, scanline, GTFF) {
+        sei                             // turn off interrupts
+        ldx #1                          // enable raster interrupts
+        stx VIC_IRQ_MASK_REG_ADDR
+        lda #<handler                   // set the handler address low byte
+        ldx #>handler                   // set the handler address high byte
+        sta $fffe
+        stx $ffff
+        ldy #scanline                  // set scanline on which to trigger interrupt
+        sty VIC_SCREEN_RASTER_LINE_ADDR
+        lda VIC_SCREEN_REG_CONTROL1_ADDR
+        and #VSRC1B_RASTER_COMPARE_BIT
+        sta VIC_SCREEN_REG_CONTROL1_ADDR
+        asl VIC_IRQ_MASK_REG_ADDR       // acknowledge interrupt by shifting left the interrupt flag register
+        .if(GTFF) {
+            lda VIC_SCREEN_REG_CONTROL1_ADDR
+            ora #VSRC1B_RASTER_COMPARE_BIT
+            sta VIC_SCREEN_REG_CONTROL1_ADDR
+        }
+        cli                             // re-enable interrupts
+}
+
+// =============================================================================
+// GTFF - if this is true we will set bit 7 in $D011 because you are telling us the scanline is greater than 255
+// =============================================================================
+.macro InstallRasterIRQHandlerChained(handler, scanline, GTFF) {
+        sei                             // turn off interrupts
+        ldx #1                          // enable raster interrupts
+        stx VIC_IRQ_MASK_REG_ADDR
+        lda #<handler                   // set the handler address low byte
+        ldx #>handler                   // set the handler address high byte
+        sta $0314
+        stx $0315
+        ldy #scanline                  // set scanline on which to trigger interrupt
+        sty VIC_SCREEN_RASTER_LINE_ADDR
+        lda VIC_SCREEN_REG_CONTROL1_ADDR
+        and #VSRC1B_RASTER_COMPARE_BIT
+        sta VIC_SCREEN_REG_CONTROL1_ADDR
+        asl VIC_IRQ_MASK_REG_ADDR       // acknowledge interrupt by shifting left the interrupt flag register
+        .if(GTFF) {
+            lda VIC_SCREEN_REG_CONTROL1_ADDR
+            ora #VSRC1B_RASTER_COMPARE_BIT
+            sta VIC_SCREEN_REG_CONTROL1_ADDR
+        }
+        cli                             // re-enable interrupts
+}
+
+// =============================================================================
+// You must call this at the top of your IRQ handler if you use
+// InstallRasterIRQHandlerNotChained(handler, scanline, GTFF) to install your 
+// handler.  If you use InstallRasterIRQHandlerChained(handler, scanline, GTFF) 
+// to install your handler, you do not need to call this macro.
+// =============================================================================
+.macro HandleIRQRegisterStack() {
+    pha
+    txa
+    pha
+    tya
+    pha
+}
+
 // =============================================================================
 // You must clear the flag at the end of your interrupt service routine
+// =============================================================================
 .macro ClearIRQRegister() {
     lda #$ff
     sta VIC_SCREEN_REG_IRPT_FLAG_ADDR
@@ -68,6 +131,16 @@ LIGHT_GRAY/LIGHT_GREY	15
         sta VIC_SCREEN_BACKGROUND_COLOR2_ADDR
         lda #bg3
         sta VIC_SCREEN_BACKGROUND_COLOR3_ADDR
+}
+
+.macro SetBorderColor(color) {
+        lda #color
+        sta VIC_SCREEN_BORDER_COLOR_ADDR
+}
+
+.macro SetBackgroundColor0(color, bg_color_index) {
+        lda #color
+        sta bg_color_index
 }
 
 // =============================================================================
@@ -138,6 +211,31 @@ interrupts) still work perfectly. They will safely look right past your custom z
 // =============================================================================
 .macro KillBASIC() {
 
+        lda $36     // Load the value to disable BASIC ($A000-$BFFF becomes RAM)
+        eor RMC_LORAM_BIT
+        sta REG_MEMORY_CONFIGURATION_ADDR    // Write to the 6510 processor port
+}
+
+// =============================================================================
+/*
+HIRAM bit in the memory configuration register. Controls the memory block at $E000–$FFFF. 1 = KERNAL ROM visible, 0 = RAM visible
+*/
+// =============================================================================
+.macro KillKernal() {
+
+        lda $36     // Load the value to disable BASIC ($A000-$BFFF becomes RAM)
+        eor RMC_HIRAM_BIT
+        sta REG_MEMORY_CONFIGURATION_ADDR    // Write to the 6510 processor port
+}
+
+// =============================================================================
+/*
+CHAREN bit in the memory configuration register. Controls the memory block at $D000–$DFFF. 1 = I/O registers (VIC-II, SID, CIAs) visible, 0 = Character Generator ROM visible
+*/
+// =============================================================================
+.macro KillCharacterGenerator() {
+
         lda #$36     // Load the value to disable BASIC ($A000-$BFFF becomes RAM)
-        sta $0001    // Write to the 6510 processor port
+        eor RMC_CHAREN_BIT
+        sta REG_MEMORY_CONFIGURATION_ADDR    // Write to the 6510 processor port
 }
