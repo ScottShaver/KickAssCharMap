@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"kickass-c64.c64DebuggerBin": "D:\\devtools\\c64debugger\\C64Debugger.exe",
+		"kickass-c64.debugWithC64Debugger": true
+	}
+}
