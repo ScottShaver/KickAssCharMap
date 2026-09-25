@@ -25,6 +25,7 @@
 
         .const VIC_SCREEN_CHAR_MEMORY_ADDR = $0400 // the start of the screen character memory
         .const VIC_SCREEN_COLOR_MEMORY_ADDR = $D800 // the start of the screen color memory
+        .const VIC_SCREEN_COLOR_MEMORY_OFFSET = VIC_SCREEN_COLOR_MEMORY_ADDR - VIC_SCREEN_CHAR_MEMORY_ADDR
         //.const CHARSET_MEMORY_ADDR = $4800 // the start of the character set memory
         //.const CUSTOM_CHARSET_MEMORY_ADDR = $3800 // the start of the character set memory
         //.const CUSTOM_MAP_MEMORY_ADDR = $8000 // the start of the charpad map memory

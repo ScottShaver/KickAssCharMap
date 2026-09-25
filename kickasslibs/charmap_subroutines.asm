@@ -31,17 +31,29 @@ no_add:
     rts
 }
 
+
+// =============================================================================
+// Subroutine: a8b
+// adds var1 to var2, then leaves the result in calcTemp2
+// Destroys: A, calcTemp2
+// =============================================================================
+.pseudocommand a8b var1:var2 {
+    clc
+    lda var1
+    adc var2
+    sta cm_calcTemp2
+}
+
 // =============================================================================
 // Subroutine: CMAddTwo8Bit
 // adds 'calcTemp1' to 'calcTemp2', then leaves the result in calcTemp2
 // Destroys: A, calcTemp2
 // =============================================================================
-CMAddTwo8Bit: {
-    // --- Core Addition Logic ---
+/*CMAddTwo8Bit: {
     clc                // Clear the carry flag before adding
     lda cm_calcTemp2           // Load current value of the second variable into accumulator
     adc cm_calcTemp1           // Add the first variable to accumulator
     sta cm_calcTemp2           // Store the result back into the second variable
     
-    rts
-}   
+    rts   
+}*/
