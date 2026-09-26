@@ -1,5 +1,8 @@
 // =============================================================================
 // Primary code file for code that displays and manipulates Charmap map data.
+// this is slow first version that I just wanted to work through - it can be used
+// uncommenting the imnport line for it in the charmap_import.asm file.  Make sure to
+// comment out the other faster versrion that is being imported.
 // =============================================================================
 
 //----------------------------------------------------------------------------------------------------------------------------

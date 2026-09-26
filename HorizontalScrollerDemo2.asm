@@ -13,9 +13,9 @@
 
 // set these to how you want the map displayed on the screen
 .const CM_DISPLAYED_MAP_X = 0               // upper left corner X coordinate of the map display
-.const CM_DISPLAYED_MAP_Y = 1               // upper left corner Y coordinate of the map display
-.const CM_DISPLAYED_MAP_TILE_WIDTH = 30     // width in tiles of the displayed map area
-.const CM_DISPLAYED_MAP_TILE_HEIGHT = 20    // height in tiles of the displayed map area
+.const CM_DISPLAYED_MAP_Y = 0               // upper left corner Y coordinate of the map display
+.const CM_DISPLAYED_MAP_TILE_WIDTH = 40     // width in tiles of the displayed map area
+.const CM_DISPLAYED_MAP_TILE_HEIGHT = 25    // height in tiles of the displayed map area
 
 .const CODE_START_ADDR = $0810          // where the code starts
 
@@ -61,31 +61,28 @@ start:
         ClearScreen($5b)
 
         sei
-        SetColors(YELLOW, BLACK, ORANGE, LIGHT_GREEN, BROWN)                    // Set border and background colors that get used for the map chars
+        SetColors(YELLOW, BLACK, ORANGE, LIGHT_GREEN, BROWN)  // Set border and background colors that get used for the map chars
         SetMulticolorMode()                          // Enable multicolor mode
         //Set38ColumnMode()                          // Enable 38-column mode
         SetLowerCaseCharsetMode()                    // make sure we using a charset with upper and lower case characters for the screen codes
         SetCharsetAddress(VIC_SCREEN_CHAR_BANK_OFFSET_10240)   // Set the address of the character set data this offset matches CHARSET_CHAR_DATA_ADDR $2800
 
-// need to get the raster IRQ routines working.        
+// TODO need to get the raster IRQ routines working.        
 //        InstallRasterIRQHandlerNotChained(handler, 150, false)
         CMInitCharMapCode()
-        //CMSetMapYCharOffset(1)
 
 loop:
-        lda #$00
+        lda #$00 // let's just scroll over and over and over
         sta smx
 loop1:
         //CMSetMapYCharOffset(smx)
         CMSetMapXCharOffset(smx)
-        //jsr sync_vblank
         jsr CMDrawMapWindowedLUTPointers
 
-        ldx smx
-        inx
-        stx smx
-        //cpx #(CM_MAP_CHAR_HEIGHT - CM_DISPLAYED_MAP_CHAR_HEIGHT)
-        cpx #(CM_MAP_CHAR_WIDTH - CM_DISPLAYED_MAP_CHAR_WIDTH)
+        ldx smx ; inx ; stx smx
+
+        //cpx #CM_MAP_MAX_SCROLL_Y
+        cpx #CM_MAP_MAX_SCROLL_X
         bne loop1
 
         jmp loop                // Main loop
@@ -101,7 +98,7 @@ sync_vblank:
         rts
 
 
-/*
+/* TODO:implement the smooth scrolling logic for horizontal movement 
 //--------------------------------------------
 // Scrolling logic
 //--------------------------------------------

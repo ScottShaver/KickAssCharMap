@@ -8,6 +8,8 @@
 .const CM_MAP_CHAR_HEIGHT = CM_MAP_TILE_HEIGHT * CM_TILE_CHAR_HEIGHT             // height in chars of the map file
 .const CM_DISPLAYED_MAP_CHAR_WIDTH = CM_DISPLAYED_MAP_TILE_WIDTH * CM_TILE_CHAR_WIDTH         // width in chars of the displayed map area
 .const CM_DISPLAYED_MAP_CHAR_HEIGHT = CM_DISPLAYED_MAP_TILE_HEIGHT * CM_TILE_CHAR_HEIGHT      // height in chars of the displayed map area
+.const CM_MAP_MAX_SCROLL_X = CM_MAP_CHAR_WIDTH - CM_DISPLAYED_MAP_CHAR_WIDTH + 1
+.const CM_MAP_MAX_SCROLL_Y = CM_MAP_CHAR_HEIGHT - CM_DISPLAYED_MAP_CHAR_HEIGHT + 1
 
 #import "c64_constants.asm"
 #import "c64_macros.asm"
