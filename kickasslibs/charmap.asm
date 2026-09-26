@@ -9,7 +9,7 @@
 .const CM_MAP_LEVEL_DATA_ADDR = $3a00      // where the map file from charpad gets loaded - 6000 bytes for a 240x25 map
 .const CM_CHARSET_ATTRIB_DATA_ADDR = $5400  // where the charset color file from charpad gets loaded - 256 bytes used
 .const CM_CHARSET_CHAR_DATA_ADDR = $2800   // where the charset file from charpad gets loaded - 2048 bytes used
-.const CM_LOOKUP_TABLES_ADDR = $1000       // where lookup tables are loaded
+.const CM_LOOKUP_TABLES_ADDR = $2000       // where lookup tables are loaded
 
 //----------------------------------------------------------------------------------------------------------------------------
 // Zero-page storage for our calculated 16-bit pointers
