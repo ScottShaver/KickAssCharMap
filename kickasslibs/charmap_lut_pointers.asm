@@ -47,6 +47,7 @@
 .var cm_CurrentCharScrollXPosition = $45        // which map column do we display in the left most display column
 .var cm_CurrentCharScrollYPosition = $46        // which map row do we display in the top most display row
 
+
 CMInitMemoryPointers:
         // init map color pointer to point to the start of level colors
         lda #<CM_CHARSET_ATTRIB_DATA_ADDR
@@ -111,77 +112,65 @@ CMInitZeroPageVariables:
         rts
 
 // draw map to the screen
-CMDrawMapWindowedLUTPointers: {
+CMDrawMapWindowed: {
         // draw the map one column at a time moving left to right
-        ldy #CM_DISPLAYED_MAP_X          // Y register is the screen column 
-        lda #CM_DISPLAYED_MAP_X
-        sta cm_CurrentDisplayX
-
-        lda #$00  // keep track of which column in the visible map screen window we are on
+        ldy #CM_DISPLAYED_MAP_X                         // Y register is the screen column 
+        lda #$00                                        // keep track of which column in the visible map screen window we are on
         sta cm_calcTemp2
 
 drawNextCol: // loop through the columns of the map window
-//.break
-        sty cm_CurrentDisplayX                  // store the current display column
-        
-        jsr CMDrawMapRowsWindowedLUTPointers     // draw all rows for the current column
-//.break
-        ldy cm_calcTemp2 ; iny ; sty cm_calcTemp2 // keep track of which column in the visible map screen window we are on
-
-        ldy cm_CurrentDisplayX
-        iny                                     // move to the next display column
+        sty cm_CurrentDisplayX                          // store the current display column
+        jsr CMDrawMapRowsWindowedLUTPointers            // draw all rows for the current column
+        ldy cm_calcTemp2 ; iny ; sty cm_calcTemp2       // keep track of which column in the visible map screen window we are on
+        ldy cm_CurrentDisplayX ; iny                    // move to the next display column
         cpy #(CM_DISPLAYED_MAP_X + CM_DISPLAYED_MAP_CHAR_WIDTH)  // have we reached the last display column? 
-
-        bne drawNextCol                            // if we have not reached the last column, continue the column loop
-
-        rts                                     // finished drawing the map window
+        bne drawNextCol                                 // if we have not reached the last column, continue the column loop
+        rts                                             // finished drawing the map window
 }
 
 // loop through the rows from top to bottom filling in the column for the current display X position
 CMDrawMapRowsWindowedLUTPointers: {
         // set the initial LUT pointer for the current row based on the display Y and scroll position
-        ldx #CM_DISPLAYED_MAP_Y // X register is the screen row 
-        stx cm_CurrentDisplayY // store the current display row
-        
-        lda #$00  // keep track of which row in the visible map screen window we are on
+        ldx #CM_DISPLAYED_MAP_Y                         // X register is the screen row 
+        stx cm_CurrentDisplayY                          // store the current display row
+        lda #$00                                        // keep track of which row in the visible map screen window we are on
         sta cm_calcTemp1
 
 drawNextCol: // loop through the columns of the map window
-//.break
         // use the LUT pointers to set the current screen char and color pointers the low byte LUT table can be used for both char and color pointers
-        // the screen locations are always based off the cm_CurrentDisplayY (row) and cm_CurrentDisplayX (column offsett from the start of the row) positions
-        lda tableScreenPointerLow, x            // low byte for row
-        sta cm_CurrentScreenCharPointer+0       //store low byte of screen char pointer
-        sta cm_CurrentScreenCharColorPointer+0  // store low byte of screen color pointer
-        lda tableCharScreenPointerHigh, x       // high byte for char row
-        sta cm_CurrentScreenCharPointer+1       // store high byte of screen char pointer
-        lda tableColorScreenPointerHigh, x      // high byte for color row
-        sta cm_CurrentScreenCharColorPointer+1  // store high byte of screen color pointer
+        // the screen locations are always based off the cm_CurrentDisplayY (row) and cm_CurrentDisplayX (column offsett from the start of the row) 
+        // positions
+        lda tableScreenPointerLow, x                    // low byte for row
+        sta cm_CurrentScreenCharPointer+0               //store low byte of screen char pointer
+        sta cm_CurrentScreenCharColorPointer+0          // store low byte of screen color pointer
+        lda tableCharScreenPointerHigh, x               // high byte for char row
+        sta cm_CurrentScreenCharPointer+1               // store high byte of screen char pointer
+        lda tableColorScreenPointerHigh, x              // high byte for color row
+        sta cm_CurrentScreenCharColorPointer+1          // store high byte of screen color pointer
         // now we have the pointers to the screen char and color locations to place the next characters and colors on the screen
 
         // get the pointer to map on the correct row based on the current vertical scroll position
-        // the map pointer is based on the (cm_CurrentCharScrollYPosition+cm_calcTemp1) (row) and (cm_CurrentCharScrollXPosition + cm_calcTemp2) (column) positions
-        lda cm_CurrentCharScrollYPosition
+        // the map pointer is based on the (cm_CurrentCharScrollYPosition+cm_calcTemp1) (row) and 
+        // (cm_CurrentCharScrollXPosition + cm_calcTemp2) (column) positions
+        lda cm_CurrentCharScrollYPosition               // load the y scroll position
         clc
-        adc cm_calcTemp1
-        tax
-        lda tableMapCharPointerLow, x           // low byte for map char row
-        sta cm_CurrentMapCharPointer+0          // store low byte of map char pointer
-        lda tableMapCharPointerHigh, x          // high byte for map char row
-        sta cm_CurrentMapCharPointer+1          // store high byte of map char pointer
+        adc cm_calcTemp1                                // add the row offset to the y scroll position
+        tax                                             // transfer the row offset to the X register for the table lookup
+        lda tableMapCharPointerLow, x                   // low byte for map char row
+        sta cm_CurrentMapCharPointer+0                  // store low byte of map char pointer
+        lda tableMapCharPointerHigh, x                  // high byte for map char row
+        sta cm_CurrentMapCharPointer+1                  // store high byte of map char pointer
 
         // we are now pointing to the correct row in the map data but we need to use the column offset to get the exact map char within this row
-        ldx cm_CurrentDisplayY                  // restore the X register for the display row loop
+        ldx cm_CurrentDisplayY                          // restore the X register for the display row loop
 
         //--------------------------------------------------------------------------------------------------
         // use indirect indexing with y register to place column char on screen
         //--------------------------------------------------------------------------------------------------
-
-        lda cm_CurrentCharScrollXPosition
+        lda cm_CurrentCharScrollXPosition               // load the x scroll position
         clc
-        adc cm_calcTemp2
-        tay
-        //ldy cm_CurrentCharScrollXPosition //#$00
+        adc cm_calcTemp2                                // add the column offset to the x scroll position
+        tay                                             // transfer to y register to use as an offset for the map char pointer
         lda (cm_CurrentMapCharPointer), y               // load the map char
         ldy cm_CurrentDisplayX
         sta (cm_CurrentScreenCharPointer), y            // place map char on screen
@@ -198,7 +187,7 @@ drawNextCol: // loop through the columns of the map window
 
         inx                                                             // move to the next row in the LUT pointers
         stx cm_CurrentDisplayY                                          // store the current display row
-        cpx #(CM_DISPLAYED_MAP_Y + CM_DISPLAYED_MAP_CHAR_HEIGHT)        // have we reached the last display row? <-------------------------------------------------------
+        cpx #(CM_DISPLAYED_MAP_Y + CM_DISPLAYED_MAP_CHAR_HEIGHT)        // have we reached the last display row?
         bne drawNextCol                                                 // if we have not reached the last row, continue the row loop
 
         ldy cm_CurrentDisplayX                                          // restore the Y register for the display column loop

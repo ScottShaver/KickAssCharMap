@@ -31,16 +31,9 @@
         .import binary "./charmap/DemoMap1/DemoMap1 - CharAttribs.bin"
 * = CM_MAP_LEVEL_DATA_ADDR "Map Data"
         .import binary "./charmap/DemoMap1/DemoMap1 - Map (240x25).bin"
-* = CM_MAP_TILES_DATA_ADDR "Map tiles"
-      //.import binary "./charmap/DemoMap1/tiles.bin"  // uncomment this is you have a tiles file from charpad
 //=============================================================================================================================
 // *** END: Configure and import everything related to our Charmap usage ***
 //=============================================================================================================================
-
-.const SPRITE_BANK1_ADDR = $3200        // where sprite data gets loaded - ????
-
-* = SPRITE_BANK1_ADDR "Bank 1 Sprites 176-216"
-      //.import binary "sprites.bin"
 
 //----------------------------------------------------------------------------------------------------------------------------
 // Code start for the basic upstart routine
