@@ -49,6 +49,7 @@
 .var cm_calcTemp2 = $44
 .var cm_calcTemp3 = $46
 .var cm_calcTemp4 = $48 // this is used in CMMultiplyTwo8bit which may end up never being used
+.var cm_drawColumnJump = $50                    // used to skip drawing columns under certain conditions
 
 //----------------------------------------------------------------------------------------------------------------------------
 // init zero-page variables
@@ -67,71 +68,222 @@ CMInitZeroPageVariables:
         lda #$00
         sta cm_CurrentCharScrollXPosition
         sta cm_CurrentCharScrollYPosition
+        sta cm_drawColumnJump
         rts
 
-//----------------------------------------------------------------------------------------------------------------------------
-// This is the routine to draw the map windowed on the screen
-//----------------------------------------------------------------------------------------------------------------------------
+
+//============================================================================================================================
+//============================================================================================================================
+// This is the routine to draw the map windowed on the screen.  It draws the entire map window area.
+// you use this is you are not using a window that stretchs from the column 0 to column 40.  Hardware smooth scrolling is
+// useless if you are not using a full-width window.
+//============================================================================================================================
+//============================================================================================================================
 CMDrawMapWindowed: {
         // Loop through ROWS first (X register = screen row)
         ldx #CM_DISPLAYED_MAP_Y
-TempVarInit:                                            //
         lda #$00                                        // save the number of rows we have drawn so we can correctly calculate the map pointer for the next row
         sta cm_calcTemp1                                // keep track of how many rows have been drawn
-drawNextRow:
-CalcScreenPointers:
-        lda tableScreenPointerLow, x                    // 1. Calculate Screen Pointer low ONCE per row, x=the row offset then add the screen xoffset                    
+CMDrawNextRow:
+        // Calculate screen pointers ONCE per row, x=the row offset then add the screen xoffset
+        lda tableScreenPointerLow, x                                        
         clc
         adc #CM_DISPLAYED_MAP_X
         sta cm_CurrentScreenCharPointer+0               
         sta cm_CurrentScreenCharColorPointer+0          
-        lda tableCharScreenPointerHigh, x               // 1. Calculate Screen Pointer high ONCE per row
+        lda tableCharScreenPointerHigh, x               
         sta cm_CurrentScreenCharPointer+1               
-        lda tableColorScreenPointerHigh, x              // 1. Calculate Screen Pointer high ONCE per row
+        lda tableColorScreenPointerHigh, x              
         sta cm_CurrentScreenCharColorPointer+1          
 
-CalcMapDataPointer:               
-        lda cm_calcTemp1                                // figure out what we need to have as an index for the map char pointer
+        // figure out what we need to have as an index for the map char pointer
+        lda cm_calcTemp1                                // how many rows we have already drawn                   
         sta cm_calcTemp2
         clc
-        adc cm_CurrentCharScrollYPosition
-        sta cm_calcTemp2+0
+        adc cm_CurrentCharScrollYPosition               // add the row scroll offset
+        sta cm_calcTemp2+0                              // update cm_calcTemp2 to hold the row offset into the map data
         bcc !+                                          // Branch if carry clear (no overflow from low byte), faster than doing the next 3 instructions
         // the carry was set, so we need to increment the high byte as well because we went past $FF in the low byte
         lda cm_calcTemp2+1                              // Load high byte
         adc #$00                                        // Add the carry flag (0 or 1)
         sta cm_calcTemp2+1                              // Save high byte back
 !:
-        ldy cm_calcTemp2                                // map row that is at the top of the display area            
-        lda tableMapCharPointerLow, y                   // set the pointer into the map data
+        // set the map char pointer to the map row that is at the top of the display area
+        ldy cm_calcTemp2                                            
+        lda tableMapCharPointerLow, y                   
         sta cm_CurrentMapCharPointer+0                  
         lda tableMapCharPointerHigh, y                  
         sta cm_CurrentMapCharPointer+1                  
-
+//.break
         .for(var col = 0; col < CM_DISPLAYED_MAP_CHAR_WIDTH; col++) {
+//****                lda cm_drawColumnJump
+//****                bne !+
+
+                // calculate the column offset with scroll
                 lda #col
                 clc
                 adc cm_CurrentCharScrollXPosition
+
+                // Get the char to put on screen
                 tay
-                lda (cm_CurrentMapCharPointer), y               // Get the char to put on screen
+                lda (cm_CurrentMapCharPointer), y               
                 sta cm_calcTemp3 // save the char
 
+                // put the char on screen
                 ldy #col
-                sta (cm_CurrentScreenCharPointer), y            // put the char on screen
+                sta (cm_CurrentScreenCharPointer), y            
                 
-                ldy cm_calcTemp3 // use the char as the index to the color
-                lda (cm_CurrentMapCharColorPointer), y          // get the color index for this character
+                // use the char as the index to the color
+                ldy cm_calcTemp3 
+                lda (cm_CurrentMapCharColorPointer), y
 
+                // put color on screen
                 ldy #col
-                sta (cm_CurrentScreenCharColorPointer), y       // put color on screen
+                sta (cm_CurrentScreenCharColorPointer), y    
+//****                jmp !++
+//****!:                
+//****                dec cm_drawColumnJump
+//****!:
         }
 
-        inc cm_calcTemp1
-        inx
-EndOfRowDraw:
+        inc cm_calcTemp1 // keep track of how many rows have been drawn
+        inx // keep track of which screen row we are on
+
+        // check if we have drawn all the rows
         cpx #(CM_DISPLAYED_MAP_Y + CM_DISPLAYED_MAP_CHAR_HEIGHT)       
-        bne dojmp
+        bne dojmp // have to do it this way because the branch distance is limited
+
         rts
-dojmp: jmp drawNextRow                                                 
-                                                     
+dojmp: jmp CMDrawNextRow                                     
 }
+
+
+
+//--------------------------------------------
+// shift the contents of the screen left by one column
+//--------------------------------------------
+shift_screen_left:
+        ldx #0
+shift_char_start:  
+        // Pull byte from column+1 and write it to current column
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (0 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (0 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (1 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (1 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (2 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (2 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (3 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (3 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (4 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (4 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (5 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (5 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (6 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (6 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (7 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (7 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (8 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (8 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (9 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (9 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (10 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (10 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS), x
+        inx
+        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
+        bne shift_char_start
+        ldx #0
+shift_char_finish:
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (12 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (12 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (13 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (13 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (14 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (14 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (15 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (15 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (16 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (16 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (17 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (17 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (18 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (18 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (19 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (19 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (20 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (20 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (21 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (21 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (22 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (22 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (23 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (23 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_CHAR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS), x
+        inx
+        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
+        bne shift_char_finish
+
+        ldx #0
+shift_clr_start:
+        // Pull byte from column+1 and write it to current column
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (0 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (0 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (1 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (1 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (2 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (2 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (3 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (3 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (4 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (4 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (5 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (5 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (6 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (6 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (7 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (7 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (8 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (8 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (9 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (9 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (10 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (10 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS), x
+        inx
+        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
+        bne shift_clr_start
+        ldx #0
+shift_clr_finish:
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (12 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (12 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (13 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (13 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (14 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (14 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (15 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (15 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (16 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (16 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (17 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (17 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (18 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (18 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (19 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (19 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (20 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (20 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (21 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (21 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (22 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (22 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (23 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (23 * VIC_SCREEN_WIDTH_COLS), x
+        lda VIC_SCREEN_COLOR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS) + 1, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS), x
+        inx
+        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
+        bne shift_clr_finish
+        rts

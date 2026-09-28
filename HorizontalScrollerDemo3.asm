@@ -18,7 +18,6 @@
 .const CM_DISPLAYED_MAP_TILE_HEIGHT = 25    // height in tiles of the displayed map area
 
 .const CODE_START_ADDR = $C000          // where the code starts
-
 //=============================================================================================================================
 // *** END: Configure and import everything related to our Charmap usage ***
 //=============================================================================================================================
@@ -29,57 +28,43 @@
 * = CODE_START_ADDR "CODE_START_ADDR"
 BasicUpstart2(start)
 
-smx: .byte
-smy: .byte  
-
 #import "./kickasslibs/charmap_import.asm" // import the Charmap processing code
 
 //----------------------------------------------------------------------------------------------------------------------------
 // main program entry point
 //----------------------------------------------------------------------------------------------------------------------------
 start:
+sei
         KillBASIC()                                             // Disable BASIC to free up RAM
         KillKernal()                                            // Disable KERNAL ROM to free up RAM
         KillCharacterGenerator()                                // Disable Character Generator ROM to free up RAM
- 
         ClearScreen($5b)                                        // Clear the screen
         SetColors(YELLOW, BLACK, ORANGE, LIGHT_GREEN, BROWN)    // Set border and background colors that get used for the map chars
         SetMulticolorMode()                                     // Enable multicolor mode
-        //Set38ColumnMode()                                     // Enable 38-column mode
+        Set38ColumnMode()                                     // Enable 38-column mode
         SetLowerCaseCharsetMode()                               // make sure we using a charset with upper and lower case characters for the screen codes
         SetCharsetAddress(VIC_SCREEN_CHAR_BANK_OFFSET_10240)    // Set the address of the character set data this offset matches CHARSET_CHAR_DATA_ADDR $2800
 
-// TODO need to get the raster IRQ routines working.        
-//        InstallRasterIRQHandlerNotChained(handler, 150, false)
-        CMInitCharMapCode()
- 
-loop:
+        CMInitCharMapCode()                                     // always call this once before using any other charmap macros
+        CMDrawMapWindowed()
 
-        lda #$01 // let's just scroll over and over and over
-        sta smx
 loop1:
+        //------------------------------------------------------------------------------------------------------
+        // this is how you use the map without smooth horizontalscrolling
+        //------------------------------------------------------------------------------------------------------
+        //CMIncMapXCharOffset()                                   // scroll the map to left by one character
+        //CMDrawMapWindowed()                                     // draw the map on the screen
 
-        //CMSetMapYCharOffset(smx)
-        CMSetMapXCharOffset(smx)
-        jsr CMDrawMapWindowed
+        //------------------------------------------------------------------------------------------------------
+        // this is how you use the map with smooth horizontal scrolling
+        // CMDrawMapWindowed() <- force the map to be drawn immediately or let the smooth scrolling handle it automatically
+        //------------------------------------------------------------------------------------------------------
+        //jsr sync_vblank
+        CMHorizontalSmoothScrollLeftOnePixel()  // when using smooth scrolling the code will automatically draw the screen when needed
 
-        ldx smx ; inx ; stx smx
+        jmp loop1
 
-        //cpx #CM_MAP_MAX_SCROLL_Y
-        cpx #CM_MAP_MAX_SCROLL_X
-        bne loop1
 
-        jmp loop                // Main loop
-
-//--------------------------------------------
-// Wait for vertical blank
-//--------------------------------------------
-sync_vblank:
-        lda VIC_SCREEN_REG_CONTROL1_ADDR
-        bpl sync_vblank
-!:      lda VIC_SCREEN_REG_CONTROL1_ADDR
-        bmi !-
-        rts
 
 //----------------------------------------------------------------------------------------------------------------------------
 // Map data for the level.

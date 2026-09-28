@@ -182,12 +182,24 @@ LIGHT_GRAY/LIGHT_GREY	15
 }
 
 // =============================================================================
-// 
+// You would normally only ever use 38-column mode when you need smooth horizontal scrolling.
+// =============================================================================
+/*.macro SetHorizontalSmoothScrollingMode() {
+        // Force 38-column mode for clean horizontal scrolling
+        lda VIC_SCREEN_REG_CONTROL2_ADDR
+        and #%11110111  // Clear bit 3 (set 0 for 38 columns, 1 for 40 columns)
+        //ora #VSRC2B_SMOOTH_SCROLLX_BITS
+        sta VIC_SCREEN_REG_CONTROL2_ADDR
+}*/
+
+// =============================================================================
+// You would normally only ever use 38-column mode when you need smooth horizontal scrolling.
 // =============================================================================
 .macro Set38ColumnMode() {
         // Force 38-column mode for clean horizontal scrolling
         lda VIC_SCREEN_REG_CONTROL2_ADDR
-        and #$F7
+        and #%11110111  // Clear bit 3 (set 0 for 38 columns, 1 for 40 columns)
+        //ora #VSRC2B_COLUMN_SELECT_BIT
         sta VIC_SCREEN_REG_CONTROL2_ADDR
 }
 
