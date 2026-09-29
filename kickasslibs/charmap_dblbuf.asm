@@ -49,6 +49,7 @@
 .var cm_CurrentScreenCharColorPointer = $14     // this is the pointer to the current memory location that we need to place a character color at
 .var cm_VisibleBuffer = $16                     // which buffer is currently visible, "A" or "B"
 .var cm_BackBufferDrawPointer = $18       // which buffer is currently the back buffer
+.var xFineScroll = $20
 
 //----------------------------------------------------------------------------------------------------------------------------
 // Zero-page storage locations for our variables
@@ -86,13 +87,20 @@ CMInitZeroPageVariables: {
         sta cm_CurrentCharScrollXPosition
         sta cm_CurrentCharScrollYPosition
         sta cm_drawColumnJump
-        rts
+
+        lda #7
+        sta xFineScroll
+/*        lda VIC_SCREEN_REG_CONTROL2_ADDR
+        and #%11111000
+        ora xFineScroll
+        sta VIC_SCREEN_REG_CONTROL2_ADDR
+ */       rts
 }
 
 //============================================================================================================================
 //============================================================================================================================
 // This is the routine to draw the map windowed on the screen.  It draws the entire map window area.
-// you use this is you are not using a window that stretchs from the column 0 to column 40.  Hardware smooth scrolling is
+// you use this if you are not using a window that stretchs from the column 0 to column 40.  Hardware smooth scrolling is
 // useless if you are not using a full-width window.
 //============================================================================================================================
 //============================================================================================================================
@@ -108,7 +116,7 @@ CMDrawNextRow:
         adc #CM_DISPLAYED_MAP_X
         sta cm_CurrentScreenCharPointer+0               
         sta cm_CurrentScreenCharColorPointer+0  
-//.break
+
         lda cm_VisibleBuffer                            // load the visible buffer identifier (e.g., 'A' or 'B')
         cmp #'A'                                        // is A the visible buffer?
         bne !+                                          // no, B is the visible buffer
@@ -116,14 +124,12 @@ CMDrawNextRow:
         sta cm_CurrentScreenCharPointer+1               
         jmp !++         
 !:
-//.break
         lda tableCharScreenAPointerHigh, x              // draw to buffer A when B is visible 
         sta cm_CurrentScreenCharPointer+1               
 !:
         lda tableColorScreenPointerHigh, x              
         sta cm_CurrentScreenCharColorPointer+1 
         // figure out what we need to have as an index for the map char pointer
-//.break
         lda cm_calcTemp1                                // how many rows we have already drawn                   
         sta cm_calcTemp2
         clc
@@ -135,14 +141,13 @@ CMDrawNextRow:
         adc #$00                                        // Add the carry flag (0 or 1)
         sta cm_calcTemp2+1                              // Save high byte back
 !:
-//.break
         // set the map char pointer to the map row that is at the top of the display area
         ldy cm_calcTemp2                                            
         lda tableMapCharPointerLow, y                   
         sta cm_CurrentMapCharPointer+0                  
         lda tableMapCharPointerHigh, y                  
         sta cm_CurrentMapCharPointer+1                  
-//.break
+
         .for(var col = 0; col < CM_DISPLAYED_MAP_CHAR_WIDTH; col++) {
 //****                lda cm_drawColumnJump
 //****                bne !+
@@ -183,39 +188,6 @@ CMDrawNextRow:
       
         rts
 dojmp: jmp CMDrawNextRow                                     
-}
-
-// flip which buffer is currently visible and which one is the back buffer
-CMFlipBuffer: {
-        //TODO do this with raster interrupts instead
-rasterWait:
-        lda $d012        // Read current VIC-II raster line counter
-        cmp #$fb         // Check if it reached line 251 ($FB)
-        bne rasterWait   // Keep busy-waiting if it hasn't reached it yet
-
-        // if buffer A is currently visible, switch to B, otherwise switch to A
-        lda cm_VisibleBuffer
-        cmp #'A'
-        bne bVisible
-
-        lda VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
-        and #$0F         // Clear the upper 4 bits (keep character memory settings)
-        ora #$30         // Set upper 4 bits to %0011 (points screen RAM to $0C00)
-        sta VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
-
-        lda #'B'
-        sta cm_VisibleBuffer
-        jmp done
-bVisible:
-        lda VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
-        and #$0F         // Clear the upper 4 bits (keep character memory settings)
-        ora #$10         // Set upper 4 bits to %0001 (points screen RAM to $0400)
-        sta VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
-
-        lda #'A'
-        sta cm_VisibleBuffer
-done:
-        rts
 }
 
 

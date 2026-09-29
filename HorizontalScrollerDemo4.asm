@@ -43,40 +43,86 @@ sei
         Set38ColumnMode()                                     // Enable 38-column mode
         SetLowerCaseCharsetMode()                               // make sure we using a charset with upper and lower case characters for the screen codes
         SetCharsetAddress(VIC_SCREEN_CHAR_BANK_OFFSET_10240)    // Set the address of the character set data this offset matches CHARSET_CHAR_DATA_ADDR $2800
-
         CMInitCharMapCode()                                     // always call this once before using any other charmap macros
-.break
+
+        // Clear the screen using double buffering
         ClearScreenDblBuf($20)
-.break
-        jsr CMFlipBuffer
-.break
+        CMFlipBuffer()
         ClearScreenDblBuf($20)
-.break
-loop1:
+        CMFlipBuffer()
+
+        jsr initIRQ
+        jmp * // Main loop does nothing; interrupts drive execution 
+
+/*loop1:
         //------------------------------------------------------------------------------------------------------
         // this is how you use the map without smooth horizontalscrolling
         //------------------------------------------------------------------------------------------------------
         //CMIncMapXCharOffset()                                   // scroll the map to left by one character
         //CMDrawMapWindowed()                                     // draw the map on the screen
-        //jsr shift_screen_left_a
-
-/*rasterWait:
-    lda $d012        // Read current VIC-II raster line counter
-    cmp #$fb         // Check if it reached line 251 ($FB)
-    bne rasterWait   // Keep busy-waiting if it hasn't reached it yet
-*/
-        //jsr CMFlipBuffer
 
         //------------------------------------------------------------------------------------------------------
         // this is how you use the map with smooth horizontal scrolling
-        // CMDrawMapWindowed() <- force the map to be drawn immediately or let the smooth scrolling handle it automatically
         //------------------------------------------------------------------------------------------------------
-    
         CMHorizontalSmoothScrollLeftOnePixel()  // when using smooth scrolling the code will automatically draw the screen when needed
-
         jmp loop1
+*/
 
+//-----------------------------------------------------------------------------------------------
+// first interrupt handler (irq1) - draw the map and handle smooth scrolling
+//-----------------------------------------------------------------------------------------------
+irq1:
+        // Acknowledge the VIC raster interrupt flag
+        asl $d019 
 
+        //****************************************
+        //****************************************
+        CMHorizontalSmoothScrollLeftOnePixel()
+        //****************************************
+        //****************************************
+
+        // Jump back to KERNAL interrupt exit routine
+        jmp $ea81 
+
+//-----------------------------------------------------------------------------------------------
+// 
+//-----------------------------------------------------------------------------------------------
+initIRQ:
+        // Disable interrupts while changing vectors and registers
+        sei 
+
+        // Set custom IRQ vector addresses ($0314/$0315)
+        lda #<irq1
+        sta $0314
+        lda #>irq1
+        sta $0315
+
+        // Turn off CIA timer interrupts
+        lda #$7f
+        sta $dc0d
+        sta $dd0d
+
+        // Enable VIC raster interrupts
+        lda #$81
+        sta $d01a 
+
+        // Set high bit of raster line in $d011 (bit 7 for line > 255, clear for < 256)
+        lda #$1b
+        sta $d011 
+
+        // Choose target raster line 251
+        lda #$fb
+        sta $d012 
+
+        // Acknowledge pending CIA and VIC flags
+        lda $dc0d
+        lda $dd0d
+        asl $d019 
+
+        // Re-enable maskable interrupts
+        cli 
+
+        rts
 
 //----------------------------------------------------------------------------------------------------------------------------
 // Map data for the level.

@@ -2,15 +2,6 @@
 // General macros for C64 programming
 // =============================================================================
 
-.macro rasterWait() {
-rasterWait:
-        lda $d012        // Read current VIC-II raster line counter
-        cmp #$fb         // Check if it reached line 251 ($FB)
-//        cmp #$d6         // Check if it reached line 251 ($FB)
-        bne rasterWait   // Keep busy-waiting if it hasn't reached it yet
-        // Your timed frame logic goes here (e.g., flash border background)
-        //inc $d020        // Increment border color
-}
 
 // =============================================================================
 // GTFF - if this is true we will set bit 7 in $D011 because you are telling us the scanline is greater than 255
