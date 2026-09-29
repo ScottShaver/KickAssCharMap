@@ -2,7 +2,9 @@
 // Pre-calculate pointer offsets for faster access at runtime
 tableScreenPointerLow:  .fill VIC_SCREEN_HEIGHT_ROWS, <(i * VIC_SCREEN_WIDTH_COLS)
 .align $100
-tableCharScreenPointerHigh: .fill VIC_SCREEN_HEIGHT_ROWS, >((i * VIC_SCREEN_WIDTH_COLS) + VIC_SCREEN_CHAR_MEMORY_ADDR)
+tableCharScreenAPointerHigh: .fill VIC_SCREEN_HEIGHT_ROWS, >((i * VIC_SCREEN_WIDTH_COLS) + VIC_SCREEN_CHAR_MEMORY_ADDR)
+.align $100
+tableCharScreenBPointerHigh: .fill VIC_SCREEN_HEIGHT_ROWS, >((i * VIC_SCREEN_WIDTH_COLS) + VIC_SCREENB_CHAR_MEMORY_ADDR)
 .align $100
 tableColorScreenPointerHigh: .fill VIC_SCREEN_HEIGHT_ROWS, >((i * VIC_SCREEN_WIDTH_COLS) + VIC_SCREEN_COLOR_MEMORY_ADDR)
 .align $100

@@ -24,6 +24,7 @@
         .const VIC_SCREEN_CHAR_BANK_OFFSET_14336 = %1110 // 14 $3800-$3FFF (14336-16383) Top 2KB of bank
 
         .const VIC_SCREEN_CHAR_MEMORY_ADDR = $0400 // the start of the screen character memory
+        .const VIC_SCREENB_CHAR_MEMORY_ADDR = $0C00 // the start of the screen character memory
         .const VIC_SCREEN_COLOR_MEMORY_ADDR = $D800 // the start of the screen color memory
         .const VIC_SCREEN_COLOR_MEMORY_OFFSET = VIC_SCREEN_COLOR_MEMORY_ADDR - VIC_SCREEN_CHAR_MEMORY_ADDR
         //.const CHARSET_MEMORY_ADDR = $4800 // the start of the character set memory

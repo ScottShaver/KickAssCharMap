@@ -3,6 +3,78 @@
 // =============================================================================
 
 // =============================================================================
+// fill the screen with a specific character
+// =============================================================================
+.macro ClearScreenDblBuf(charcode) {
+        // if buffer A is currently visible, clear B
+        lda cm_VisibleBuffer
+        cmp #'A'
+        bne cleara
+
+        lda #charcode     // Load value charcode into accumulator
+        ldx #$00          // Initialize X register to 0
+clear_loopB:
+        // Write 0 to 4 blocks of 250/256 bytes covering 1000 screen bytes
+        sta VIC_SCREENB_CHAR_MEMORY_ADDR, x
+        sta VIC_SCREENB_CHAR_MEMORY_ADDR + $100, x
+        sta VIC_SCREENB_CHAR_MEMORY_ADDR + $200, x
+        sta VIC_SCREENB_CHAR_MEMORY_ADDR + $300, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + $100, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + $200, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + $300, x
+        inx               // Increment X register
+        bne clear_loopB    // Loop 256 times until X rolls back to 0
+        jmp clearDone
+
+cleara:
+        lda #charcode     // Load value charcode into accumulator
+        ldx #$00          // Initialize X register to 0
+clear_loopA:
+        // Write 0 to 4 blocks of 250/256 bytes covering 1000 screen bytes
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + $100, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + $200, x
+        sta VIC_SCREEN_CHAR_MEMORY_ADDR + $300, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + $100, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + $200, x
+        sta VIC_SCREEN_COLOR_MEMORY_ADDR + $300, x
+        
+        inx               // Increment X register
+        bne clear_loopA    // Loop 256 times until X rolls back to 0
+clearDone:
+}
+
+// flip which buffer is currently visible and which one is the back buffer
+/*.macro CMFlipBuffer() {
+.break
+        // if buffer A is currently visible, switch to B, otherwise switch to A
+        lda cm_VisibleBuffer
+        cmp #'A'
+        bne bVisible
+
+        lda VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
+        and #$0F         // Clear the upper 4 bits (keep character memory settings)
+        ora #$30         // Set upper 4 bits to %0011 (points screen RAM to $0C00)
+        sta VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
+
+        lda #'B'
+        sta cm_VisibleBuffer
+        jmp done
+bVisible:
+        lda VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
+        and #$0F         // Clear the upper 4 bits (keep character memory settings)
+        ora #$10         // Set upper 4 bits to %0001 (points screen RAM to $0400)
+        sta VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
+
+        lda #'A'
+        sta cm_VisibleBuffer
+done:
+}*/
+
+
+// =============================================================================
 // Use this macro to draw the current windowed view of the charmap on the screen
 // =============================================================================
 .macro CMDrawMapWindowed() {
@@ -33,6 +105,7 @@ done:
 //  use this macro to smoothly scroll the map to the left by one pixel
 // =============================================================================
 .macro CMHorizontalSmoothScrollLeftOnePixel() {
+//.break
         lda VIC_SCREEN_REG_CONTROL2_ADDR
         and #VSRC2B_SMOOTH_SCROLLX_BITS  // Mask out the fine scroll bits (0-7)
         beq coarse_scroll_left
@@ -41,7 +114,8 @@ done:
 
 coarse_scroll_left:
         CMIncMapXCharOffset()
-        jsr shift_screen_left
+        //rasterWait()                    // <----------------------- not sure this is the right place for this
+        //jsr shift_screen_left   //  <-----------------------removing this smooths things out
 
         // instead of drawing the entire screen we set cm_drawColumnJump to #CM_DISPLAYED_MAP_CHAR_WIDTH
         // Use that value in the CMDrawMapWindowed routine to skip drawing columns that are not needed, in this case only draw the last column
@@ -49,7 +123,7 @@ coarse_scroll_left:
 //****        sta cm_drawColumnJump
         
         CMDrawMapWindowed()
-
+        jsr CMFlipBuffer
         // then we set cm_drawColumnJump back to zero
 //****        lda #$00
 //****        sta cm_drawColumnJump
