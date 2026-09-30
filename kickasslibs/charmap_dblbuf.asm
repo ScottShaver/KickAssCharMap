@@ -48,7 +48,6 @@
 .var cm_CurrentScreenCharPointer = $12          // this is the pointer to the current memory location that we need to place a character at
 .var cm_CurrentScreenCharColorPointer = $14     // this is the pointer to the current memory location that we need to place a character color at
 .var cm_VisibleBuffer = $16                     // which buffer is currently visible, "A" or "B"
-.var cm_BackBufferDrawPointer = $18       // which buffer is currently the back buffer
 .var xFineScroll = $20
 
 //----------------------------------------------------------------------------------------------------------------------------
@@ -61,7 +60,8 @@
 .var cm_calcTemp2 = $44
 .var cm_calcTemp3 = $46
 .var cm_calcTemp4 = $48                         // this is used in CMMultiplyTwo8bit which may end up never being used
-.var cm_drawColumnJump = $50                    // used to skip drawing columns under certain conditions
+.var cm_drawColumnJump = $52                    // used to skip drawing columns under certain conditions
+.var cm_drawColumnJumpSave = $54                    // used to skip drawing columns under certain conditions
 
 //----------------------------------------------------------------------------------------------------------------------------
 // init zero-page variables
@@ -71,10 +71,6 @@ CMInitMemoryPointers:
         sta cm_CurrentMapCharColorPointer
         lda #>CM_CHARSET_ATTRIB_DATA_ADDR
         sta cm_CurrentMapCharColorPointer + 1
-        lda #<VIC_SCREENB_CHAR_MEMORY_ADDR
-        sta cm_BackBufferDrawPointer
-        lda #>VIC_SCREENB_CHAR_MEMORY_ADDR
-        sta cm_BackBufferDrawPointer+1
         lda #'A'
         sta cm_VisibleBuffer
         rts
@@ -90,11 +86,7 @@ CMInitZeroPageVariables: {
 
         lda #7
         sta xFineScroll
-/*        lda VIC_SCREEN_REG_CONTROL2_ADDR
-        and #%11111000
-        ora xFineScroll
-        sta VIC_SCREEN_REG_CONTROL2_ADDR
- */       rts
+        rts
 }
 
 //============================================================================================================================
@@ -105,11 +97,17 @@ CMInitZeroPageVariables: {
 //============================================================================================================================
 //============================================================================================================================
 CMDrawMapWindowed: {
+        lda cm_drawColumnJump
+        sta cm_drawColumnJumpSave
+
         // Loop through ROWS first (X register = screen row)
         ldx #CM_DISPLAYED_MAP_Y
         lda #$00                                        // save the number of rows we have drawn so we can correctly calculate the map pointer for the next row
         sta cm_calcTemp1                                // keep track of how many rows have been drawn
 CMDrawNextRow:
+        ldy cm_drawColumnJumpSave
+        sty cm_drawColumnJump
+
         // Calculate screen pointers ONCE per row, x=the row offset then add the screen xoffset
         lda tableScreenPointerLow, x                                        
         clc
@@ -147,11 +145,12 @@ CMDrawNextRow:
         sta cm_CurrentMapCharPointer+0                  
         lda tableMapCharPointerHigh, y                  
         sta cm_CurrentMapCharPointer+1                  
-
+//.break
         .for(var col = 0; col < CM_DISPLAYED_MAP_CHAR_WIDTH; col++) {
-//****                lda cm_drawColumnJump
-//****                bne !+
-
+loopa:
+lda cm_drawColumnJump
+bne !+
+//.break
                 // calculate the column offset with scroll
                 lda #col
                 clc
@@ -173,12 +172,13 @@ CMDrawNextRow:
                 // put color on screen
                 ldy #col
                 sta (cm_CurrentScreenCharColorPointer), y    
-//****                jmp !++
-//****!:                
-//****                dec cm_drawColumnJump
-//****!:
+jmp !++
+!:                
+dec cm_drawColumnJump
+!:
+loopb:
         }
-
+//.break
         inc cm_calcTemp1 // keep track of how many rows have been drawn
         inx // keep track of which screen row we are on
 
@@ -196,13 +196,14 @@ dojmp: jmp CMDrawNextRow
 //--------------------------------------------
 shift_screen_left_a:
         ldx #0
-        lda cm_VisibleBuffer
-        cmp 'A'
+/*        lda cm_VisibleBuffer
+        cmp #'A'
         bne shift_b_buffer_left
         jmp shift_a_buffer_left
 shift_b_buffer_left:
         jsr shift_screen_left_b
-shift_a_buffer_left:
+        ldx #0
+shift_a_buffer_left:*/
 shift_screen_left_a_char_start:  
         // Pull byte from column+1 and write it to current column
         lda VIC_SCREEN_CHAR_MEMORY_ADDR + (0 * VIC_SCREEN_WIDTH_COLS) + 1, x
@@ -230,7 +231,8 @@ shift_screen_left_a_char_start:
         lda VIC_SCREEN_CHAR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS) + 1, x
         sta VIC_SCREEN_CHAR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS), x
         inx
-        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
+        
+        cpx #VIC_SCREEN_WIDTH_COLS-1 // Shift 39 columns wide
         bne shift_screen_left_a_char_start
         ldx #0
 shift_screen_left_a_char_finish:
@@ -261,11 +263,9 @@ shift_screen_left_a_char_finish:
         lda VIC_SCREEN_CHAR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS) + 1, x
         sta VIC_SCREEN_CHAR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS), x
         inx
-        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
-        bne shift_screen_left_a_char_finish
 
-        ldx #0
-        jsr shift_screen_left_clr_start
+        cpx #VIC_SCREEN_WIDTH_COLS-1 // Shift 39 columns wide
+        bne shift_screen_left_a_char_finish
         rts
 
 shift_screen_left_b:
@@ -297,7 +297,8 @@ shift_screen_left_b_char_start:
         lda VIC_SCREENB_CHAR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS) + 1, x
         sta VIC_SCREENB_CHAR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS), x
         inx
-        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
+
+        cpx #VIC_SCREEN_WIDTH_COLS-1 // Shift 39 columns wide
         bne shift_screen_left_b_char_start
         ldx #0
 shift_screen_left_b_char_finish:
@@ -328,15 +329,15 @@ shift_screen_left_b_char_finish:
         lda VIC_SCREENB_CHAR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS) + 1, x
         sta VIC_SCREENB_CHAR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS), x
         inx
-        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
-        bne shift_screen_left_b_char_finish
 
-        ldx #0
-        jsr shift_screen_left_clr_start
+        cpx #VIC_SCREEN_WIDTH_COLS-1 // Shift 39 columns wide
+        bne shift_screen_left_b_char_finish
         rts
 
 
 shift_screen_left_clr_start:
+        ldx #0
+shift_screen_left_clr_start_loop:
         // Pull byte from column+1 and write it to current column
         lda VIC_SCREEN_COLOR_MEMORY_ADDR + (0 * VIC_SCREEN_WIDTH_COLS) + 1, x
         sta VIC_SCREEN_COLOR_MEMORY_ADDR + (0 * VIC_SCREEN_WIDTH_COLS), x
@@ -363,8 +364,8 @@ shift_screen_left_clr_start:
         lda VIC_SCREEN_COLOR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS) + 1, x
         sta VIC_SCREEN_COLOR_MEMORY_ADDR + (11 * VIC_SCREEN_WIDTH_COLS), x
         inx
-        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
-        bne shift_screen_left_clr_start
+        cpx #VIC_SCREEN_WIDTH_COLS-1 // Shift 39 columns wide
+        bne shift_screen_left_clr_start_loop
         ldx #0
 shift_screen_left_clr_finish:
         lda VIC_SCREEN_COLOR_MEMORY_ADDR + (12 * VIC_SCREEN_WIDTH_COLS) + 1, x
@@ -394,6 +395,6 @@ shift_screen_left_clr_finish:
         lda VIC_SCREEN_COLOR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS) + 1, x
         sta VIC_SCREEN_COLOR_MEMORY_ADDR + (24 * VIC_SCREEN_WIDTH_COLS), x
         inx
-        cpx #VIC_SCREEN_WIDTH_COLS - 1 // Shift 39 columns wide
+        cpx #VIC_SCREEN_WIDTH_COLS-1 // Shift 39 columns wide
         bne shift_screen_left_clr_finish
         rts

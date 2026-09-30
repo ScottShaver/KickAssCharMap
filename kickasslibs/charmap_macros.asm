@@ -83,32 +83,52 @@ skipCoarseScroll:
 //  use this macro to smoothly scroll the map to the left by one pixel
 // =============================================================================
 .macro CMHorizontalSmoothScrollLeftOnePixel() {
+.break
         lda xFineScroll    
-        beq CoarseScroll           
-        dec xFineScroll
-        bpl skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
+        bmi CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
+        jmp skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
+
 CoarseScroll:
-        CMIncMapXCharOffset()
-        CMDrawMapWindowed()
-
-        /*
-        // instead of drawing the entire screen we set cm_drawColumnJump to #CM_DISPLAYED_MAP_CHAR_WIDTH
-        // Use that value in the CMDrawMapWindowed routine to skip drawing columns that are not needed, in this case only draw the last column
-        lda #CM_DISPLAYED_MAP_CHAR_WIDTH-1
-        sta cm_drawColumnJump
-        */
-        /*        
-        // then we set cm_drawColumnJump back to zero
-        lda #$00
-        sta cm_drawColumnJump
-        */
-
         // Reset fine scroll hardware register back to 7
         lda #7
         sta xFineScroll
+        CMSetFineScroll()
+
+        // instead of drawing the entire screen we set cm_drawColumnJump to #CM_DISPLAYED_MAP_CHAR_WIDTH
+        // Use that value in the CMDrawMapWindowed routine to skip drawing columns that are not needed, in this case only draw the last column
+        // for all of the columns except the last one, we copy them to the left to avoid all the pointer calculations and optimize performance
+        ldx #CM_DISPLAYED_MAP_CHAR_WIDTH-1
+        stx cm_drawColumnJump
+
+        CMIncMapXCharOffset()                                   // scroll left one character column
+
+        lda cm_VisibleBuffer
+        cmp #'A'
+        bne doAFirst // B is the back buffer, draw it first
+doBFirst:
+        jsr shift_screen_left_clr_start
+        jsr shift_screen_left_b         // shift the back buffer left by one char leaving the last column dirty
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jsr shift_screen_left_a         // shift the back buffer left by one char leaving the last column dirty
         CMFlipBuffer()
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jmp done
+doAFirst:
+        jsr shift_screen_left_clr_start
+        jsr shift_screen_left_a         // shift the back buffer left by one char leaving the last column dirty
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jsr shift_screen_left_b         // shift the back buffer left by one char leaving the last column dirty
+        CMFlipBuffer()
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jmp done
 
 skipCoarseScroll:
+        CMSetFineScroll()
+        dec xFineScroll
+done:
+}
+
+.macro CMSetFineScroll() {
         lda VIC_SCREEN_REG_CONTROL2_ADDR
         and #%11111000
         ora xFineScroll

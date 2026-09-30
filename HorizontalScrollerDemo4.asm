@@ -51,10 +51,17 @@ sei
         ClearScreenDblBuf($20)
         CMFlipBuffer()
 
-        jsr initIRQ
-        jmp * // Main loop does nothing; interrupts drive execution 
+        ldx #0
+        stx cm_drawColumnJump
+        CMDrawMapWindowed()
+        CMFlipBuffer()
+        CMDrawMapWindowed()
+        CMFlipBuffer()
 
-/*loop1:
+//        jsr initIRQ
+//        jmp * // Main loop does nothing; interrupts drive execution 
+
+loop1:
         //------------------------------------------------------------------------------------------------------
         // this is how you use the map without smooth horizontalscrolling
         //------------------------------------------------------------------------------------------------------
@@ -64,9 +71,10 @@ sei
         //------------------------------------------------------------------------------------------------------
         // this is how you use the map with smooth horizontal scrolling
         //------------------------------------------------------------------------------------------------------
+
         CMHorizontalSmoothScrollLeftOnePixel()  // when using smooth scrolling the code will automatically draw the screen when needed
         jmp loop1
-*/
+/**/
 
 //-----------------------------------------------------------------------------------------------
 // first interrupt handler (irq1) - draw the map and handle smooth scrolling
