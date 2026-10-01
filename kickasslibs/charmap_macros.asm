@@ -83,17 +83,12 @@ skipCoarseScroll:
 //  use this macro to smoothly scroll the map to the left by one pixel
 // =============================================================================
 .macro CMHorizontalSmoothScrollLeftOnePixel() {
-.break
         lda xFineScroll    
+        //beq CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
         bmi CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
         jmp skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
 
 CoarseScroll:
-        // Reset fine scroll hardware register back to 7
-        lda #7
-        sta xFineScroll
-        CMSetFineScroll()
-
         // instead of drawing the entire screen we set cm_drawColumnJump to #CM_DISPLAYED_MAP_CHAR_WIDTH
         // Use that value in the CMDrawMapWindowed routine to skip drawing columns that are not needed, in this case only draw the last column
         // for all of the columns except the last one, we copy them to the left to avoid all the pointer calculations and optimize performance
@@ -112,7 +107,7 @@ doBFirst:
         jsr shift_screen_left_a         // shift the back buffer left by one char leaving the last column dirty
         CMFlipBuffer()
         CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
-        jmp done
+        jmp resetFineScroll
 doAFirst:
         jsr shift_screen_left_clr_start
         jsr shift_screen_left_a         // shift the back buffer left by one char leaving the last column dirty
@@ -120,6 +115,13 @@ doAFirst:
         jsr shift_screen_left_b         // shift the back buffer left by one char leaving the last column dirty
         CMFlipBuffer()
         CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jmp resetFineScroll
+
+resetFineScroll:
+        // Reset fine scroll hardware register back to 7
+        lda #7
+        sta xFineScroll
+        CMSetFineScroll()
         jmp done
 
 skipCoarseScroll:
