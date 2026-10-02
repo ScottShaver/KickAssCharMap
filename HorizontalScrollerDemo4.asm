@@ -17,7 +17,7 @@
 .const CM_DISPLAYED_MAP_TILE_WIDTH = 40     // width in tiles of the displayed map area
 .const CM_DISPLAYED_MAP_TILE_HEIGHT = 20    // height in tiles of the displayed map area
 
-.const CODE_START_ADDR = $C800          // where the code starts
+.const CODE_START_ADDR = $5500//$C800          // where the code starts
 //=============================================================================================================================
 // *** END: Configure and import everything related to our Charmap usage ***
 //=============================================================================================================================
@@ -51,13 +51,16 @@ sei
         ClearScreenDblBuf($20)
         CMFlipBuffer()
 
-        ldx #0
+// need to be able to start the map scrolled left and scroll it back right
+// the various scroll offsets and column jumps need to be initialized before drawing the map
+// right now it is broken. using the left scroll starting at zero works.
+        ldx #40//#40
         stx cm_drawColumnJump
         CMDrawMapWindowed()
         CMFlipBuffer()
         CMDrawMapWindowed()
         CMFlipBuffer()
-
+        CMSetMapXCharOffset(40)
 //        jsr initIRQ
 //        jmp * // Main loop does nothing; interrupts drive execution 
 
@@ -72,7 +75,8 @@ loop1:
         // this is how you use the map with smooth horizontal scrolling
         //------------------------------------------------------------------------------------------------------
 
-        CMHorizontalSmoothScrollLeftOnePixel()  // when using smooth scrolling the code will automatically draw the screen when needed
+        //CMHorizontalSmoothScrollLeftOnePixel()  // when using smooth scrolling the code will automatically draw the screen when needed
+        CMHorizontalSmoothScrollRightOnePixel()
         jmp loop1
 /**/
 

@@ -58,33 +58,64 @@ clearDone:
 //  use this macro to smoothly scroll the map to the left by one pixel
 // =============================================================================
 .macro CMHorizontalSmoothScrollRightOnePixel() {
-        lda VIC_SCREEN_REG_CONTROL2_ADDR
-        and #%11111000
-        ora xFineScroll
-        sta VIC_SCREEN_REG_CONTROL2_ADDR
-        inc xFineScroll
-        bpl skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
+//.break
+        lda #CM_SCROLL_RIGHT
+        sta cm_LeftOrRight
+        lda cm_xFineScroll
+        cmp #8    
+        beq CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
+        jmp skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
 
-        CMDecMapXCharOffset()
-        //TODO do this with raster interrupts instead
-        // do not draw the back buffer until we hit the vertical blank or at least until the raster is past the visible area
-        // the reason is if the map changed positions while the raster is still drawing the screen, the visible screen (the front buffer)
-        // will show issues as the screen color memory is updated with the back buffer data
-        CMRasterWait()
-        CMDrawMapWindowed()
+CoarseScroll:
+        // instead of drawing the entire screen we set cm_drawColumnJump to #CM_DISPLAYED_MAP_CHAR_WIDTH
+        // Use that value in the CMDrawMapWindowed routine to skip drawing columns that are not needed, in this case only draw the last column
+        // for all of the columns except the last one, we copy them to the left to avoid all the pointer calculations and optimize performance
+        ldx #1
+        stx cm_drawColumnJump
 
-        // Reset fine scroll hardware register back to 7
-        lda #7
-        sta xFineScroll
+        CMDecMapXCharOffset()                                   // scroll right one character column
+
+        lda cm_VisibleBuffer
+        cmp #'A'
+        bne doAFirst // B is the back buffer, draw it first
+doBFirst:
+//.break
+        jsr shift_screen_right_clr_start
+        jsr shift_screen_right_b         // shift the back buffer left by one char leaving the last column dirty
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jsr shift_screen_right_a         // shift the back buffer left by one char leaving the last column dirty
+        CMFlipBuffer()
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jmp resetFineScroll
+doAFirst:
+        jsr shift_screen_right_clr_start
+        jsr shift_screen_right_a         // shift the back buffer left by one char leaving the last column dirty
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jsr shift_screen_right_b         // shift the back buffer left by one char leaving the last column dirty
+        CMFlipBuffer()
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jmp resetFineScroll
+
+resetFineScroll:
+        // Reset fine scroll hardware register back to 0
+        lda #0
+        sta cm_xFineScroll
+        CMSetFineScroll()
+        jmp done
+
 skipCoarseScroll:
+        CMSetFineScroll()
+        inc cm_xFineScroll
+done:
 }
 
 // =============================================================================
 //  use this macro to smoothly scroll the map to the left by one pixel
 // =============================================================================
 .macro CMHorizontalSmoothScrollLeftOnePixel() {
-        lda xFineScroll    
-        //beq CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
+        lda #CM_SCROLL_LEFT
+        sta cm_LeftOrRight
+        lda cm_xFineScroll    
         bmi CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
         jmp skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
 
@@ -120,20 +151,20 @@ doAFirst:
 resetFineScroll:
         // Reset fine scroll hardware register back to 7
         lda #7
-        sta xFineScroll
+        sta cm_xFineScroll
         CMSetFineScroll()
         jmp done
 
 skipCoarseScroll:
         CMSetFineScroll()
-        dec xFineScroll
+        dec cm_xFineScroll
 done:
 }
 
 .macro CMSetFineScroll() {
         lda VIC_SCREEN_REG_CONTROL2_ADDR
         and #%11111000
-        ora xFineScroll
+        ora cm_xFineScroll
         sta VIC_SCREEN_REG_CONTROL2_ADDR
 }
 
@@ -201,6 +232,8 @@ rasterWaitLoop:
 // =============================================================================
 .macro CMIncMapXCharOffset() {
         inc cm_CurrentCharScrollXPosition
+        lda #CM_SCROLL_LEFT
+        sta cm_LeftOrRight
 }
 
 // =============================================================================
@@ -209,13 +242,15 @@ rasterWaitLoop:
 // =============================================================================
 .macro CMDecMapXCharOffset() {
         dec cm_CurrentCharScrollXPosition
+        lda #CM_SCROLL_RIGHT
+        sta cm_LeftOrRight
 }
 
 // =============================================================================
 // Jump to the horizontal scroll position passed in.
 // =============================================================================
 .macro CMSetMapXCharOffset(x) {
-        lda x
+        lda #x
         sta cm_CurrentCharScrollXPosition
 }
 
