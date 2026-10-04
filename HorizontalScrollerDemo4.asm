@@ -13,7 +13,7 @@
 
 // set these to how you want the map displayed on the screen
 .const CM_DISPLAYED_MAP_X = 0               // upper left corner X coordinate of the map display
-.const CM_DISPLAYED_MAP_Y = 0               // upper left corner Y coordinate of the map display
+.const CM_DISPLAYED_MAP_Y = 5               // upper left corner Y coordinate of the map display
 .const CM_DISPLAYED_MAP_TILE_WIDTH = 40     // width in tiles of the displayed map area
 .const CM_DISPLAYED_MAP_TILE_HEIGHT = 20    // height in tiles of the displayed map area
 
@@ -46,21 +46,14 @@ sei
         CMInitCharMapCode()                                     // always call this once before using any other charmap macros
 
         // Clear the screen using double buffering
-        ClearScreenDblBuf($20)
+        CMClearScreenDblBuf($20)
+        CMSetMapXCharOffset(200)
+        CMForceDrawMapWindowed()
         CMFlipBuffer()
-        ClearScreenDblBuf($20)
+        CMForceDrawMapWindowed()
         CMFlipBuffer()
 
-// need to be able to start the map scrolled left and scroll it back right
-// the various scroll offsets and column jumps need to be initialized before drawing the map
-// right now it is broken. using the left scroll starting at zero works.
-        ldx #40//#40
-        stx cm_drawColumnJump
-        CMDrawMapWindowed()
-        CMFlipBuffer()
-        CMDrawMapWindowed()
-        CMFlipBuffer()
-        CMSetMapXCharOffset(40)
+//.break
 //        jsr initIRQ
 //        jmp * // Main loop does nothing; interrupts drive execution 
 
@@ -74,9 +67,9 @@ loop1:
         //------------------------------------------------------------------------------------------------------
         // this is how you use the map with smooth horizontal scrolling
         //------------------------------------------------------------------------------------------------------
-
         //CMHorizontalSmoothScrollLeftOnePixel()  // when using smooth scrolling the code will automatically draw the screen when needed
         CMHorizontalSmoothScrollRightOnePixel()
+.break
         jmp loop1
 /**/
 

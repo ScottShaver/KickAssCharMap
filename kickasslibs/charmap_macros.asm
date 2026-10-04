@@ -1,18 +1,46 @@
 // =============================================================================
-// macros specifically for handling charmap maps
+// macros specifically for handling charmap maps.  mnost of these just jsr
+// to call the corresponding subroutines defined in the charmap code.
 // =============================================================================
 
 // =============================================================================
-// fill the screen with a specific character
+// Default game initialization macro for setting up the C64 environment and charmap
+// This macro sets up the C64 environment, including disabling BASIC, KERNAL, and 
+// the character generator, setting colors, enabling multicolor and 38-column modes, 
+// setting the charset address, and initializing the charmap code. 
 // =============================================================================
-.macro ClearScreenDblBuf(charcode) {
-        // if buffer A is currently visible, clear B
-        lda cm_VisibleBuffer
-        cmp #'A'
-        bne cleara
+.macro DefaultGameInit() {
+        sei
+        KillBASIC()                                             // Disable BASIC to free up RAM
+        KillKernal()                                            // Disable KERNAL ROM to free up RAM
+        KillCharacterGenerator()                                // Disable Character Generator ROM to free up RAM
+        SetColors(BLACK, BLACK, ORANGE, LIGHT_GREEN, BROWN)     // Set border and background colors that get used for the map chars
+        SetMulticolorMode()                                     // Enable multicolor mode
+        Set38ColumnMode()                                       // Enable 38-column mode
+        SetLowerCaseCharsetMode()                               // make sure we using a charset with upper and lower case characters for the screen codes
+        SetCharsetAddress(VIC_SCREEN_CHAR_BANK_OFFSET_10240)    // Set the address of the character set data this offset matches CHARSET_CHAR_DATA_ADDR $2800
+        CMInitCharMapCode()                                     // always call this once before using any other charmap macros
 
-        lda #charcode     // Load value charcode into accumulator
-        ldx #$00          // Initialize X register to 0
+        // Clear the screen using double buffering
+        CMClearScreenDblBuf($20)
+        CMForceDrawMapWindowed()
+        CMFlipBuffer()
+        CMForceDrawMapWindowed()
+        CMFlipBuffer()                         
+}
+
+// =============================================================================
+// Fill the entire back buffer with a specific character and then flip the buffer to 
+// make it visible. So if you want to clear the front and back buffers, call 
+// this macro twice with the desired character code.
+// =============================================================================
+.macro CMClearScreenDblBuf(charcode) {
+        lda cm_VisibleBuffer            // load the currently visible buffer ('A' or 'B')
+        cmp #'A'                        // compare with 'A' to check if buffer A is visible
+        bne cleara                      // if not 'A', then buffer B is visible, so clear A instead
+
+        lda #charcode                   // Load value charcode into accumulator
+        ldx #$00                        // Initialize X register to 0
 clear_loopB:
         // Write 0 to 4 blocks of 250/256 bytes covering 1000 screen bytes
         sta VIC_SCREENB_CHAR_MEMORY_ADDR, x
@@ -23,13 +51,13 @@ clear_loopB:
         sta VIC_SCREEN_COLOR_MEMORY_ADDR + $100, x
         sta VIC_SCREEN_COLOR_MEMORY_ADDR + $200, x
         sta VIC_SCREEN_COLOR_MEMORY_ADDR + $300, x
-        inx               // Increment X register
-        bne clear_loopB    // Loop 256 times until X rolls back to 0
+        inx                             // Increment X register, to move to the next screen column
+        bne clear_loopB                 // Loop 256 times until X rolls back to 0
         jmp clearDone
 
 cleara:
-        lda #charcode     // Load value charcode into accumulator
-        ldx #$00          // Initialize X register to 0
+        lda #charcode                   // Load value charcode into accumulator
+        ldx #$00                        // Initialize X register to 0
 clear_loopA:
         // Write 0 to 4 blocks of 250/256 bytes covering 1000 screen bytes
         sta VIC_SCREEN_CHAR_MEMORY_ADDR, x
@@ -41,126 +69,40 @@ clear_loopA:
         sta VIC_SCREEN_COLOR_MEMORY_ADDR + $200, x
         sta VIC_SCREEN_COLOR_MEMORY_ADDR + $300, x
         
-        inx               // Increment X register
-        bne clear_loopA    // Loop 256 times until X rolls back to 0
+        inx                             // Increment X register, to move to the next screen column
+        bne clear_loopA                 // Loop 256 times until X rolls back to 0
 clearDone:
+        jsr CMFlipBuffer                  // Flip the visible buffer to show the cleared screen
+
 }
 
 
 // =============================================================================
 // Use this macro to draw the current windowed view of the charmap on the screen
+// back buffer. This will only draw either the right or left column of the visible
+// map area 
 // =============================================================================
 .macro CMDrawMapWindowed() {
         jsr CMDrawMapWindowed
 }
 
 // =============================================================================
-//  use this macro to smoothly scroll the map to the left by one pixel
+// Use this macro to draw the current windowed view of the charmap on the screen
+// back buffer. This will draw the entire visible map area, regardless of 
+// cm_drawColumnJump value.
 // =============================================================================
-.macro CMHorizontalSmoothScrollRightOnePixel() {
-//.break
-        lda #CM_SCROLL_RIGHT
-        sta cm_LeftOrRight
-        lda cm_xFineScroll
-        cmp #8    
-        beq CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
-        jmp skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
-
-CoarseScroll:
-        // instead of drawing the entire screen we set cm_drawColumnJump to #CM_DISPLAYED_MAP_CHAR_WIDTH
-        // Use that value in the CMDrawMapWindowed routine to skip drawing columns that are not needed, in this case only draw the last column
-        // for all of the columns except the last one, we copy them to the left to avoid all the pointer calculations and optimize performance
-        ldx #1
-        stx cm_drawColumnJump
-
-        CMDecMapXCharOffset()                                   // scroll right one character column
-
-        lda cm_VisibleBuffer
-        cmp #'A'
-        bne doAFirst // B is the back buffer, draw it first
-doBFirst:
-//.break
-        jsr shift_screen_right_clr_start
-        jsr shift_screen_right_b         // shift the back buffer left by one char leaving the last column dirty
-        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
-        jsr shift_screen_right_a         // shift the back buffer left by one char leaving the last column dirty
-        CMFlipBuffer()
-        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
-        jmp resetFineScroll
-doAFirst:
-        jsr shift_screen_right_clr_start
-        jsr shift_screen_right_a         // shift the back buffer left by one char leaving the last column dirty
-        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
-        jsr shift_screen_right_b         // shift the back buffer left by one char leaving the last column dirty
-        CMFlipBuffer()
-        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
-        jmp resetFineScroll
-
-resetFineScroll:
-        // Reset fine scroll hardware register back to 0
-        lda #0
-        sta cm_xFineScroll
-        CMSetFineScroll()
-        jmp done
-
-skipCoarseScroll:
-        CMSetFineScroll()
-        inc cm_xFineScroll
-done:
+.macro CMForceDrawMapWindowed() {
+        jsr CMForceDrawMapWindowed
 }
 
+
 // =============================================================================
-//  use this macro to smoothly scroll the map to the left by one pixel
+// This macro sets the fine scroll hardware register based on the current value
+// of cm_xFineScroll.
+//
+// NOTE: You would normally not call this directly it is use internally by the 
+// charmap code.
 // =============================================================================
-.macro CMHorizontalSmoothScrollLeftOnePixel() {
-        lda #CM_SCROLL_LEFT
-        sta cm_LeftOrRight
-        lda cm_xFineScroll    
-        bmi CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
-        jmp skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
-
-CoarseScroll:
-        // instead of drawing the entire screen we set cm_drawColumnJump to #CM_DISPLAYED_MAP_CHAR_WIDTH
-        // Use that value in the CMDrawMapWindowed routine to skip drawing columns that are not needed, in this case only draw the last column
-        // for all of the columns except the last one, we copy them to the left to avoid all the pointer calculations and optimize performance
-        ldx #CM_DISPLAYED_MAP_CHAR_WIDTH-1
-        stx cm_drawColumnJump
-
-        CMIncMapXCharOffset()                                   // scroll left one character column
-
-        lda cm_VisibleBuffer
-        cmp #'A'
-        bne doAFirst // B is the back buffer, draw it first
-doBFirst:
-        jsr shift_screen_left_clr_start
-        jsr shift_screen_left_b         // shift the back buffer left by one char leaving the last column dirty
-        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
-        jsr shift_screen_left_a         // shift the back buffer left by one char leaving the last column dirty
-        CMFlipBuffer()
-        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
-        jmp resetFineScroll
-doAFirst:
-        jsr shift_screen_left_clr_start
-        jsr shift_screen_left_a         // shift the back buffer left by one char leaving the last column dirty
-        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
-        jsr shift_screen_left_b         // shift the back buffer left by one char leaving the last column dirty
-        CMFlipBuffer()
-        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
-        jmp resetFineScroll
-
-resetFineScroll:
-        // Reset fine scroll hardware register back to 7
-        lda #7
-        sta cm_xFineScroll
-        CMSetFineScroll()
-        jmp done
-
-skipCoarseScroll:
-        CMSetFineScroll()
-        dec cm_xFineScroll
-done:
-}
-
 .macro CMSetFineScroll() {
         lda VIC_SCREEN_REG_CONTROL2_ADDR
         and #%11111000
@@ -168,38 +110,50 @@ done:
         sta VIC_SCREEN_REG_CONTROL2_ADDR
 }
 
-//--------------------------------------------
-// flip which buffer is currently visible and which one is the back buffer
-//--------------------------------------------
-.macro CMFlipBuffer() {
-        // if buffer A is currently visible, switch to B, otherwise switch to A
-        lda cm_VisibleBuffer
-        cmp #'A'
-        bne aBufferCurrentlyVisible
-
-bBufferCurrentlyVisible:
-        lda VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
-        and #$0F         // Clear the upper 4 bits (keep character memory settings)
-        ora #$30         // Set upper 4 bits to %0011 (points screen RAM to $0C00)
-        sta VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
-
-        lda #'B'
-        sta cm_VisibleBuffer
-        jmp flipDone
-aBufferCurrentlyVisible:
-        lda VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
-        and #$0F         // Clear the upper 4 bits (keep character memory settings)
-        ora #$10         // Set upper 4 bits to %0001 (points screen RAM to $0400)
-        sta VIC_SCREEN_REG_MEMORY_CONTROL_ADDR
-
-        lda #'A'
-        sta cm_VisibleBuffer
-flipDone:
+// =============================================================================
+// Use this macro to smoothly scroll the map to the left by one pixel. By left
+// I mean the map will visually move to the left, revealing new columns on the 
+// right side of the screen.  In game this typically happens when the player moves 
+// to the right.
+//
+// When a full new column is displayed the existing screen contents are copied
+// to the left by one column and the emptied column on the right is filled with 
+// new data. To maintain a smooth scrolling effect the hardware fine scroll 
+// register is used.
+// =============================================================================
+.macro CMHorizontalSmoothScrollLeftOnePixel() {
+        jsr CMHorizontalSmoothScrollLeftOnePixel
 }
 
-//--------------------------------------------
+// =============================================================================
+// Use this macro to smoothly scroll the map to the right by one pixel. By right
+// I mean the map will visually move to the right, revealing new columns on the 
+// left side of the screen.  In game this typically happens when the player moves 
+// to the left.
+//
+// When a full new column is displayed the existing screen contents are copied
+// to the right by one column and the emptied column on the left is filled with 
+// new data. To maintain a smooth scrolling effect the hardware fine scroll 
+// register is used.
+// =============================================================================
+.macro CMHorizontalSmoothScrollRightOnePixel() {
+        jsr CMHorizontalSmoothScrollRightOnePixel
+} 
+
+// =============================================================================
+// Flip which screen buffer is currently visible and which one is the back buffer.
+//
+// NOTE: You would normally not call this directly it is use internally by the 
+// charmap code.
+// =============================================================================
+.macro CMFlipBuffer() {
+        jsr CMFlipBuffer
+}
+
+// =============================================================================
 // Wait for vertical blank
-//--------------------------------------------
+// TODO make this take an argument
+// =============================================================================
 .macro CMRasterWait() {
 rasterWaitLoop:
         lda VIC_SCREEN_RASTER_LINE_ADDR         // Read current VIC-II raster line counter
@@ -209,7 +163,8 @@ rasterWaitLoop:
 
 // =============================================================================
 // You should call this macro at the start of your program to initialize the 
-// charmap code before using any other charmap macros
+// charmap code before using any other charmap macros.  This will set up 
+// necessary memory pointers and zero-page variables.
 // =============================================================================
 .macro CMInitCharMapCode() {
         jsr CMInitMemoryPointers                      // Initialize memory pointers for screen and map data
@@ -217,7 +172,7 @@ rasterWaitLoop:
 }
 
 // =============================================================================
-// 
+// TODO:
 // =============================================================================
 .macro CMSetMapCharOffset(x, y) {
         lda x
@@ -227,8 +182,11 @@ rasterWaitLoop:
 }
 
 // =============================================================================
-// Scroll the map horizontally by one character in the X direction. The map moves
+// Scroll the map horizontally by one column in the X direction. The map moves
 // to left on the screen
+//
+// NOTE: You would normally not call this directly it is use internally by the 
+// charmap code.
 // =============================================================================
 .macro CMIncMapXCharOffset() {
         inc cm_CurrentCharScrollXPosition
@@ -237,8 +195,11 @@ rasterWaitLoop:
 }
 
 // =============================================================================
-// Scroll the map horizontally by one character in the X direction. The map moves
-// to right on the screen
+// Scroll the map horizontally by one column in the X direction. The map moves
+// to right on the screen.
+//
+// NOTE: You would normally not call this directly it is use internally by the 
+// charmap code.
 // =============================================================================
 .macro CMDecMapXCharOffset() {
         dec cm_CurrentCharScrollXPosition
@@ -247,23 +208,31 @@ rasterWaitLoop:
 }
 
 // =============================================================================
-// Jump to the horizontal scroll position passed in.
+// Force the map to jump to the specified horizontal scroll position. The map 
+// will be redrawn accordingly.
 // =============================================================================
 .macro CMSetMapXCharOffset(x) {
         lda #x
         sta cm_CurrentCharScrollXPosition
+        jsr CMForceDrawMapWindowed
+        jsr CMFlipBuffer
+        jsr CMForceDrawMapWindowed
 }
 
 // =============================================================================
-// Jump to the vertical scroll position passed in.
+// Force the map to jump to the specified vertical scroll position. The map 
+// will be redrawn accordingly.
 // =============================================================================
 .macro CMSetMapYCharOffset(y) {
-        lda y
+        lda #y
         sta cm_CurrentCharScrollYPosition
+        jsr CMForceDrawMapWindowed
+        jsr CMFlipBuffer
+        jsr CMForceDrawMapWindowed
 }
 
 // =============================================================================
-// 
+// TODO: 
 // =============================================================================
 .macro CMSetMapCharOffsetLiterals(x, y) {
         lda #x
