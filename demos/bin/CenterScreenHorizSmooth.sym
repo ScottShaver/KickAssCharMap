@@ -1,0 +1,87 @@
+.label shift_screen_left_a_char_start=$61d4
+.label CMMultiplyTwo8bit=$1514 {
+  .label loop=$151c
+  .label no_add=$1527
+}
+.label CMInitZeroPageVariables=$550d {
+}
+.label shift_screen_right_clr_start_loop2=$64d6
+.label shift_screen_left_a_char_start2=$6233
+.label shift_screen_left_b_char_start2=$62ba
+.label draw_scroll_left_loop=$55ee {
+}
+.label shift_screen_right_clr_start_loop=$648d
+.label scrollRight=$15e2 {
+}
+.label shift_screen_right_b_char_start=$6406
+.label tableMapCharPointerLow=$1400
+.label shift_screen_left_clr_start_loop=$62f8
+.label CMInitMemoryPointers=$5500
+.label shift_screen_right_clr_start=$648b
+.label shift_screen_left_clr_start=$62f6
+.label CMHorizontalSmoothScrollRightOnePixel=$60e0 {
+  .label CoarseScroll=$60ed
+  .label resetFineScroll=$6127
+  .label skipCoarseScroll=$613a {
+  }
+  .label doAFirst=$6112
+  .label doBFirst=$60fd
+  .label done=$6146
+}
+.label tableMapCharPointerHigh=$1500
+.namespace VIC_SCREEN_REG_SPRITE_DISPLAY_ENABLE_BITS {
+}
+.label shift_screen_left_clr_start_loop2=$6341
+.label CMFlipBuffer=$61ac {
+  .label bBufferCurrentlyVisible=$61b2
+  .label aBufferCurrentlyVisible=$61c3
+  .label flipDone=$61d1
+}
+.label tableCharScreenAPointerHigh=$1100
+.label shift_screen_left_b=$626f
+.label shift_screen_right_a=$637d
+.label shift_screen_right_b=$6404
+.label CMHorizontalSmoothScrollLeftOnePixel=$6147 {
+  .label CoarseScroll=$6152
+  .label resetFineScroll=$618c
+  .label skipCoarseScroll=$619f {
+  }
+  .label doAFirst=$6177
+  .label doBFirst=$6162
+  .label done=$61ab
+}
+.label tableColorScreenPointerHigh=$1300
+.label scrollLeft=$15d9
+.label draw_scroll_right_loop=$5b17 {
+}
+.label tableScreenPointerLow=$1000
+.namespace SID {
+}
+.label shift_screen_right_a_char_start=$637f
+.label shift_screen_left_a=$61d2
+.label shift_screen_left_b_char_start=$6271
+.label shift_screen_right_a_char_start2=$63c8
+.label shift_screen_right_b_char_start2=$644f
+.label CMForceDrawMapWindowed=$5520 {
+  .label dojmp=$557c
+  .label CMDrawNextRow=$552a
+}
+.label tableCharScreenBPointerHigh=$1200
+.label CMDrawMapWindowed=$557f {
+  .label dojmp=$55eb
+  .label CMDrawNextRow=$5589
+}
+.namespace CIA2 {
+}
+.label start=$152f {
+}
+.namespace CIA1 {
+}
+.namespace SPRITE {
+  .namespace REG_SPRITES_2X_VERT_BITS {
+  }
+  .namespace SPRITES_MULTICOLOR_MODE_BITS {
+  }
+  .namespace REG_SPRITES_2X_HORIZ_BITS {
+  }
+}

@@ -1,0 +1,20 @@
+Output dir: D:\devprojects\c64\KickAssCharMap\demos\bin
+parsing
+flex pass 1
+flex pass 2
+flex pass 3
+Output pass
+Writing prg file: CenterScreenHorizSmooth.prg
+
+Memory Map
+----------
+Default-segment:
+  $0801-$080c Basic
+  $080e-$080d Basic End
+  $1000-$15ed CM_LOOKUP_TABLES_ADDR
+  $2800-$2fff CHARSET_CHAR_DATA_ADDR
+  $3a00-$4cbf MAP_LEVEL_DATA_ADDR
+  $5400-$54ff CHARSET_ATTRIB_DATA_ADDR
+  $5500-$6511 CODE_START_ADDR
+
+Writing Symbol file: CenterScreenHorizSmooth.sym

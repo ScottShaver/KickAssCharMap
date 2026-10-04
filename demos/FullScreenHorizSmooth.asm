@@ -1,5 +1,6 @@
 //=============================================================================================================================
 // *** START: Configure and import everything related to our Charmap usage ***
+// This demo shows full screen horizontal smooth scrolling with a large map (240x25).
 //=============================================================================================================================
 //----------------------------------------------------------------------------------------------------------------------------
 // The constants below define the dimensions and layout of the map and tiles for this program.
@@ -17,69 +18,39 @@
 .const CM_DISPLAYED_MAP_TILE_WIDTH = 40     // width in tiles of the displayed map area
 .const CM_DISPLAYED_MAP_TILE_HEIGHT = 25    // height in tiles of the displayed map area
 
-.const CODE_START_ADDR = $C000          // where the code starts
+.const CODE_START_ADDR = $5500//$C800          // where the code starts
 
+BasicUpstart2(start)
+* = CODE_START_ADDR "CODE_START_ADDR"
+
+#import "../kickasslibs/charmap_import.asm" // import the Charmap processing code
 //=============================================================================================================================
 // *** END: Configure and import everything related to our Charmap usage ***
 //=============================================================================================================================
 
 //----------------------------------------------------------------------------------------------------------------------------
-// Code start for the basic upstart routine
-//----------------------------------------------------------------------------------------------------------------------------
-* = CODE_START_ADDR "CODE_START_ADDR"
-BasicUpstart2(start)
-
-smx: .byte
-smy: .byte  
-
-#import "./kickasslibs/charmap_import.asm" // import the Charmap processing code
-
-//----------------------------------------------------------------------------------------------------------------------------
-// main program entry point
+// program entry point
 //----------------------------------------------------------------------------------------------------------------------------
 start:
-        KillBASIC()                                             // Disable BASIC to free up RAM
-        KillKernal()                                            // Disable KERNAL ROM to free up RAM
-        KillCharacterGenerator()                                // Disable Character Generator ROM to free up RAM
- 
-        ClearScreen($5b)                                        // Clear the screen
-        SetColors(YELLOW, BLACK, ORANGE, LIGHT_GREEN, BROWN)    // Set border and background colors that get used for the map chars
-        SetMulticolorMode()                                     // Enable multicolor mode
-        //Set38ColumnMode()                                     // Enable 38-column mode
-        SetLowerCaseCharsetMode()                               // make sure we using a charset with upper and lower case characters for the screen codes
-        SetCharsetAddress(VIC_SCREEN_CHAR_BANK_OFFSET_10240)    // Set the address of the character set data this offset matches CHARSET_CHAR_DATA_ADDR $2800
+        DefaultGameInit()   // Initialize the game with default settings
 
-// TODO need to get the raster IRQ routines working.        
-//        InstallRasterIRQHandlerNotChained(handler, 150, false)
-        CMInitCharMapCode()
- 
-loop:
-
-        lda #$01 // let's just scroll over and over and over
-        sta smx
-loop1:
-
-        //CMSetMapYCharOffset(smx)
-        CMSetMapXCharOffset(smx)
-        jsr CMDrawMapWindowed
-
-        ldx smx ; inx ; stx smx
-
-        //cpx #CM_MAP_MAX_SCROLL_Y
-        cpx #CM_MAP_MAX_SCROLL_X
-        bne loop1
-
-        jmp loop                // Main loop
-
-//--------------------------------------------
-// Wait for vertical blank
-//--------------------------------------------
-sync_vblank:
-        lda VIC_SCREEN_REG_CONTROL1_ADDR
-        bpl sync_vblank
-!:      lda VIC_SCREEN_REG_CONTROL1_ADDR
-        bmi !-
-        rts
+        //------------------------------------------------------------------------------------------------------
+        // this is how you use the map with smooth horizontal scrolling
+        // when using smooth scrolling the code will automatically draw the screen when needed
+        // and flip the buffers as needed to maintain smooth scrolling
+        //------------------------------------------------------------------------------------------------------
+scrollLeft: // scroll the map to the left until the x position reaches 200 (map is 240 chars wide)
+//.break
+        CMHorizontalSmoothScrollLeftOnePixel()  
+        lda cm_CurrentCharScrollXPosition
+        cmp #$C8 //200
+        bne scrollLeft
+scrollRight: // scroll the map to the right until the x position reaches 0
+        CMHorizontalSmoothScrollRightOnePixel()  
+        lda cm_CurrentCharScrollXPosition
+        cmp #$0
+        bne scrollRight
+        jmp scrollLeft
 
 //----------------------------------------------------------------------------------------------------------------------------
 // Map data for the level.
@@ -87,10 +58,10 @@ sync_vblank:
 //----------------------------------------------------------------------------------------------------------------------------
 * = CM_CHARSET_CHAR_DATA_ADDR "CHARSET_CHAR_DATA_ADDR"
 .align $100
-        .import binary "./charmap/DemoMap1/DemoMap1 - Chars.bin"
+        .import binary "../charmap/DemoMap1/DemoMap1 - Chars.bin"
 * = CM_CHARSET_ATTRIB_DATA_ADDR "CHARSET_ATTRIB_DATA_ADDR"
 .align $100
-        .import binary "./charmap/DemoMap1/DemoMap1 - CharAttribs.bin"
+        .import binary "../charmap/DemoMap1/DemoMap1 - CharAttribs.bin"
 * = CM_MAP_LEVEL_DATA_ADDR "MAP_LEVEL_DATA_ADDR"
 .align $100
-        .import binary "./charmap/DemoMap1/DemoMap1 - Map (240x25).bin"
+        .import binary "../charmap/DemoMap1/DemoMap1 - Map (240x25).bin"

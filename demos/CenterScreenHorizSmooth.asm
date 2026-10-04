@@ -23,7 +23,7 @@
 BasicUpstart2(start)
 * = CODE_START_ADDR "CODE_START_ADDR"
 
-#import "./kickasslibs/charmap_import.asm" // import the Charmap processing code
+#import "../kickasslibs/charmap_import.asm" // import the Charmap processing code
 //=============================================================================================================================
 // *** END: Configure and import everything related to our Charmap usage ***
 //=============================================================================================================================
@@ -58,10 +58,10 @@ scrollRight: // scroll the map to the right until the x position reaches 0
 //----------------------------------------------------------------------------------------------------------------------------
 * = CM_CHARSET_CHAR_DATA_ADDR "CHARSET_CHAR_DATA_ADDR"
 .align $100
-        .import binary "./charmap/DemoMap2/DemoMap2 - Chars.bin"
+        .import binary "../charmap/DemoMap2/DemoMap2 - Chars.bin"
 * = CM_CHARSET_ATTRIB_DATA_ADDR "CHARSET_ATTRIB_DATA_ADDR"
 .align $100
-        .import binary "./charmap/DemoMap2/DemoMap2 - CharAttribs.bin"
+        .import binary "../charmap/DemoMap2/DemoMap2 - CharAttribs.bin"
 * = CM_MAP_LEVEL_DATA_ADDR "MAP_LEVEL_DATA_ADDR"
 .align $100
-        .import binary "./charmap/DemoMap2/DemoMap2 - Map (240x20).bin"
+        .import binary "../charmap/DemoMap2/DemoMap2 - Map (240x20).bin"
