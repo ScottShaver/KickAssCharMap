@@ -9,12 +9,12 @@
 // the character generator, setting colors, enabling multicolor and 38-column modes, 
 // setting the charset address, and initializing the charmap code. 
 // =============================================================================
-.macro DefaultGameInit() {
+.macro SmoothGameInit() {
         sei
         KillBASIC()                                             // Disable BASIC to free up RAM
         KillKernal()                                            // Disable KERNAL ROM to free up RAM
         KillCharacterGenerator()                                // Disable Character Generator ROM to free up RAM
-        SetColors(BLACK, BLACK, ORANGE, LIGHT_GREEN, BROWN)     // Set border and background colors that get used for the map chars
+        SetColors(BLACK, BLUE, ORANGE, LIGHT_GREEN, BROWN)     // Set border and background colors that get used for the map chars
         SetMulticolorMode()                                     // Enable multicolor mode
         Set38ColumnMode()                                       // Enable 38-column mode
         SetLowerCaseCharsetMode()                               // make sure we using a charset with upper and lower case characters for the screen codes
@@ -23,8 +23,29 @@
 
         // Clear the screen using double buffering
         CMClearScreenDblBuf($20)
+        CMClearScreenDblBuf($20)
         CMForceDrawMapWindowed()
-        CMFlipBuffer()
+        CMFlipBuffer()                         
+        CMForceDrawMapWindowed()
+        CMFlipBuffer()                         
+}
+
+.macro CoarseGameInit() {
+        sei
+        KillBASIC()                                             // Disable BASIC to free up RAM
+        KillKernal()                                            // Disable KERNAL ROM to free up RAM
+        KillCharacterGenerator()                                // Disable Character Generator ROM to free up RAM
+        SetColors(BLACK, BLUE, ORANGE, LIGHT_GREEN, BROWN)     // Set border and background colors that get used for the map chars
+        SetMulticolorMode()                                     // Enable multicolor mode
+        SetLowerCaseCharsetMode()                               // make sure we using a charset with upper and lower case characters for the screen codes
+        SetCharsetAddress(VIC_SCREEN_CHAR_BANK_OFFSET_10240)    // Set the address of the character set data this offset matches CHARSET_CHAR_DATA_ADDR $2800
+        CMInitCharMapCode()                                     // always call this once before using any other charmap macros
+
+        // Clear the screen using double buffering
+        CMClearScreenDblBuf($20)
+        CMClearScreenDblBuf($20)
+        CMForceDrawMapWindowed()
+        CMFlipBuffer()                         
         CMForceDrawMapWindowed()
         CMFlipBuffer()                         
 }
@@ -121,8 +142,12 @@ clearDone:
 // new data. To maintain a smooth scrolling effect the hardware fine scroll 
 // register is used.
 // =============================================================================
-.macro CMHorizontalSmoothScrollLeftOnePixel() {
-        jsr CMHorizontalSmoothScrollLeftOnePixel
+.macro CMHorizontalSmoothScrollLeft() {
+        jsr CMHorizontalSmoothScrollLeft
+}
+
+.macro CMHorizontalScrollLeft() {
+        jsr CMHorizontalScrollLeft
 }
 
 // =============================================================================
@@ -136,9 +161,13 @@ clearDone:
 // new data. To maintain a smooth scrolling effect the hardware fine scroll 
 // register is used.
 // =============================================================================
-.macro CMHorizontalSmoothScrollRightOnePixel() {
-        jsr CMHorizontalSmoothScrollRightOnePixel
+.macro CMHorizontalSmoothScrollRight() {
+        jsr CMHorizontalSmoothScrollRight
 } 
+
+.macro CMHorizontalScrollRight() {
+        jsr CMHorizontalScrollRight
+}
 
 // =============================================================================
 // Flip which screen buffer is currently visible and which one is the back buffer.

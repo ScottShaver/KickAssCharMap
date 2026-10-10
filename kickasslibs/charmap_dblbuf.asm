@@ -148,8 +148,7 @@ CMDrawNextRow:
 
         lda #0                                          // initialize the column jump to 0 before drawing the scroll left loop
         sta cm_drawColumnJump                           // store the initial column jump value
-        jsr draw_scroll_left_loop                       // call the routine to draw the scroll left loop
-//        CMFlipBuffer()
+        jsr draw_full_left_loop
 
         inc cm_calcTemp1                                // keep track of how many rows have been drawn
         inx                                             // keep track of which screen row we are on
@@ -180,6 +179,8 @@ CMDrawNextRow:
         // Calculate screen pointers ONCE per row, x=the row offset then add the screen xoffset
         lda tableScreenPointerLow, x                    // use the lookup table to get the low byte of the screen pointer for this row
         clc
+
+        // right after this add the pointer is pointing at the left col of the display map window top row as if it is going to redraw the entire map area
         adc #CM_DISPLAYED_MAP_X                         // add the screen x offset to the low byte of the screen pointer
         sta cm_CurrentScreenCharPointer+0               // store the low byte of the screen char pointer
         sta cm_CurrentScreenCharColorPointer+0          // store the low byte of the screen char color pointer
@@ -220,6 +221,7 @@ CMDrawNextRow:
         lda cm_LeftOrRight                              // load the current scroll direction
         cmp #CM_SCROLL_LEFT                             // check if the scroll direction is left
         bne !+                                          // if not, branch to the right scroll handling
+
         lda #(CM_DISPLAYED_MAP_CHAR_WIDTH + CM_DISPLAYED_MAP_X - 1)              // set the column jump for left scroll
         sta cm_drawColumnJump
         jsr draw_scroll_left_loop                       // call the left scroll drawing loop
@@ -229,7 +231,6 @@ CMDrawNextRow:
         sta cm_drawColumnJump                           // store the column jump for right scroll
         jsr draw_scroll_right_loop                      // call the right scroll drawing loop
 !:
-
         inc cm_calcTemp1                                // keep track of how many rows have been drawn
         inx                                             // keep track of which screen row we are on
 
@@ -246,8 +247,32 @@ dojmp: jmp CMDrawNextRow
 // characters and their colors on the screen.
 //============================================================================================================================
 draw_scroll_left_loop: {
+        // calculate the column offset with scroll
+        lda #CM_DISPLAYED_MAP_CHAR_WIDTH-1
+        clc
+        adc cm_CurrentCharScrollXPosition
+
+        // Get the char to put on screen
+        tay
+        lda (cm_CurrentMapCharPointer), y               
+        sta cm_calcTemp3 // save the char
+
+        // put the char on screen
+        ldy #CM_DISPLAYED_MAP_CHAR_WIDTH-1
+        sta (cm_CurrentScreenCharPointer), y            
+        
+        // use the char as the index to the color
+        ldy cm_calcTemp3 
+        lda (cm_CurrentMapCharColorPointer), y
+
+        // put color on screen
+        ldy #CM_DISPLAYED_MAP_CHAR_WIDTH-1
+        sta (cm_CurrentScreenCharColorPointer), y    
+        rts
+}
+
+draw_full_left_loop: {
         .for(var col = 0; col < CM_DISPLAYED_MAP_CHAR_WIDTH; col++) {
-//.break
                 lda cm_drawColumnJump
                 cmp #0
                 bne !+
@@ -286,40 +311,62 @@ draw_scroll_left_loop: {
 // characters and their colors on the screen.
 //============================================================================================================================
 draw_scroll_right_loop: {
-        .for(var col = 0 ; col < CM_DISPLAYED_MAP_CHAR_WIDTH; col++) {
-                lda #col
-                cmp cm_drawColumnJump
-                beq quit
-                jmp keepGoing
-quit:
-                rts
-keepGoing:
-                // calculate the column offset with scroll
-                lda #col
-                clc
-                adc cm_CurrentCharScrollXPosition
+        // calculate the column offset with scroll
+        lda #0
+        clc
+        adc cm_CurrentCharScrollXPosition
 
-                // Get the char to put on screen
-                tay
-                lda (cm_CurrentMapCharPointer), y               
-                sta cm_calcTemp3 // save the char
+        // Get the char to put on screen
+        tay
+        lda (cm_CurrentMapCharPointer), y               
+        sta cm_calcTemp3 // save the char
 
-                // put the char on screen
-                ldy #col
-                sta (cm_CurrentScreenCharPointer), y            
-                
-                // use the char as the index to the color
-                ldy cm_calcTemp3 
-                lda (cm_CurrentMapCharColorPointer), y
+        // put the char on screen
+        ldy #0
+        sta (cm_CurrentScreenCharPointer), y            
+        
+        // use the char as the index to the color
+        ldy cm_calcTemp3 
+        lda (cm_CurrentMapCharColorPointer), y
 
-                // put color on screen
-                ldy #col
-                sta (cm_CurrentScreenCharColorPointer), y    
-                jmp !++
-!:                
-                dec cm_drawColumnJump
-!:
-        }
+        // put color on screen
+        ldy #0
+        sta (cm_CurrentScreenCharColorPointer), y    
+        rts
+}
+
+CMHorizontalScrollRight:{
+        lda #CM_SCROLL_RIGHT
+        sta cm_LeftOrRight
+CoarseScroll:
+        // instead of drawing the entire screen we set cm_drawColumnJump to #CM_DISPLAYED_MAP_CHAR_WIDTH
+        // Use that value in the CMDrawMapWindowed routine to skip drawing columns that are not needed, in this case only draw the last column
+        // for all of the columns except the last one, we copy them to the left to avoid all the pointer calculations and optimize performance
+        ldx #0
+        stx cm_drawColumnJump
+
+        CMDecMapXCharOffset()                                   // scroll right one character column
+
+        lda cm_VisibleBuffer
+        cmp #'A'
+        bne doAFirst // B is the back buffer, draw it first
+doBFirst:
+        jsr shift_screen_right_clr_start
+        jsr shift_screen_right_b         // shift the back buffer left by one char leaving the last column dirty
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jsr shift_screen_right_a         // shift the back buffer left by one char leaving the last column dirty
+        jsr CMFlipBuffer
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jmp done
+doAFirst:
+        jsr shift_screen_right_clr_start
+        jsr shift_screen_right_a         // shift the back buffer left by one char leaving the last column dirty
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jsr shift_screen_right_b         // shift the back buffer left by one char leaving the last column dirty
+        jsr CMFlipBuffer
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+ 
+done:
         rts
 }
 
@@ -334,12 +381,12 @@ keepGoing:
 // new data. To maintain a smooth scrolling effect the hardware fine scroll 
 // register is used.
 // =============================================================================
-CMHorizontalSmoothScrollRightOnePixel:{
+CMHorizontalSmoothScrollRight:{
         lda #CM_SCROLL_RIGHT
         sta cm_LeftOrRight
         lda cm_xFineScroll
         cmp #7
-        beq CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
+        beq CoarseScroll     // If fine scroll is 7, go to coarse scroll.
         jmp skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
 
 CoarseScroll:
@@ -386,6 +433,40 @@ done:
         rts
 }
 
+CMHorizontalScrollLeft:  {
+        lda #CM_SCROLL_LEFT
+        sta cm_LeftOrRight
+CoarseScroll:
+        // instead of drawing the entire screen we set cm_drawColumnJump to #CM_DISPLAYED_MAP_CHAR_WIDTH
+        // Use that value in the CMDrawMapWindowed routine to skip drawing columns that are not needed, in this case only draw the last column
+        // for all of the columns except the last one, we copy them to the left to avoid all the pointer calculations and optimize performance
+        ldx #CM_DISPLAYED_MAP_CHAR_WIDTH-1
+        stx cm_drawColumnJump
+
+        CMIncMapXCharOffset()                                   // scroll left one character column
+
+        lda cm_VisibleBuffer
+        cmp #'A'
+        bne doAFirst // B is the back buffer, draw it first
+doBFirst:
+        jsr shift_screen_left_clr_start
+        jsr shift_screen_left_b         // shift the back buffer left by one char leaving the last column dirty
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jsr shift_screen_left_a         // shift the back buffer left by one char leaving the last column dirty
+        jsr CMFlipBuffer
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jmp done
+doAFirst:
+        jsr shift_screen_left_clr_start
+        jsr shift_screen_left_a         // shift the back buffer left by one char leaving the last column dirty
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+        jsr shift_screen_left_b         // shift the back buffer left by one char leaving the last column dirty
+        jsr CMFlipBuffer
+        CMDrawMapWindowed()             // draw only the last column as specified by cm_drawColumnJump
+done:
+        rts
+}
+
 // =============================================================================
 // Use this macro to smoothly scroll the map to the left by one pixel. By left
 // I mean the map will visually move to the left, revealing new columns on the 
@@ -397,11 +478,11 @@ done:
 // new data. To maintain a smooth scrolling effect the hardware fine scroll 
 // register is used.
 // =============================================================================
-CMHorizontalSmoothScrollLeftOnePixel:  {
+CMHorizontalSmoothScrollLeft:  {
         lda #CM_SCROLL_LEFT
         sta cm_LeftOrRight
         lda cm_xFineScroll    
-        beq CoarseScroll     // If fine scroll is negative, go to coarse scroll. don't check for zero, we have to draw the screen when the fine scroll is zero
+        beq CoarseScroll     // If fine scroll is zero, go to coarse scroll. 
         jmp skipCoarseScroll  // If xscroll is still positive, continue fine scrolling
 
 CoarseScroll:
@@ -485,7 +566,7 @@ flipDone:
 // shift the contents of the screen left by one column (buffer A)
 // These routines only shift the portion of the screen trhat the map area covers.
 //============================================================================================================================
-shift_screen_left_a:
+shift_screen_left_a: { 
         ldx #0 + CM_DISPLAYED_MAP_X
 shift_screen_left_a_char_start:  
         .for(var row = CM_DISPLAYED_MAP_Y ; row <= CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT/2); row++) {
@@ -508,12 +589,13 @@ shift_screen_left_a_char_start2:
         cpx #CM_DISPLAYED_MAP_CHAR_WIDTH-1+CM_DISPLAYED_MAP_X
         bne shift_screen_left_a_char_start2
         rts
+}
 
 //============================================================================================================================
 // shift the contents of the screen left by one column (buffer B)
 // These routines only shift the portion of the screen trhat the map area covers.
 //============================================================================================================================
-shift_screen_left_b:
+shift_screen_left_b: { 
         ldx #0 + CM_DISPLAYED_MAP_X
 shift_screen_left_b_char_start:  
         .for(var row = CM_DISPLAYED_MAP_Y ; row <= CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT/2); row++) {
@@ -535,12 +617,13 @@ shift_screen_left_b_char_start2:
         cpx #CM_DISPLAYED_MAP_CHAR_WIDTH-1+CM_DISPLAYED_MAP_X
         bne shift_screen_left_b_char_start2
         rts
+}
 
 //============================================================================================================================
 // shift the contents of the screen left by one column (color memory)
 // These routines only shift the portion of the screen trhat the map area covers.
 //============================================================================================================================
-shift_screen_left_clr_start:
+shift_screen_left_clr_start: { 
         ldx #0 + CM_DISPLAYED_MAP_X
 shift_screen_left_clr_start_loop:
         .for(var row = CM_DISPLAYED_MAP_Y ; row <= CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT/2); row++) {
@@ -562,13 +645,14 @@ shift_screen_left_clr_start_loop2:
         cpx #CM_DISPLAYED_MAP_CHAR_WIDTH-1+CM_DISPLAYED_MAP_X
         bne shift_screen_left_clr_start_loop2
         rts
+}
 
 //============================================================================================================================
 // shift the contents of the screen right by one column (buffer A)
 // These routines only shift the portion of the screen trhat the map area covers.
 //============================================================================================================================
-shift_screen_right_a:
-        ldx #CM_DISPLAYED_MAP_CHAR_WIDTH-2
+shift_screen_right_a: {
+        ldx #0 + CM_DISPLAYED_MAP_X + CM_DISPLAYED_MAP_CHAR_WIDTH-2
 shift_screen_right_a_char_start:  
         .for(var row = CM_DISPLAYED_MAP_Y ; row <= CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT/2); row++) {
                 // Pull byte from column and write it to column-1
@@ -576,9 +660,9 @@ shift_screen_right_a_char_start:
                 sta VIC_SCREEN_CHAR_MEMORY_ADDR + (row * VIC_SCREEN_WIDTH_COLS) + 1, x
         }
         dex
-        cpx #0
+        cpx #CM_DISPLAYED_MAP_X
         bpl shift_screen_right_a_char_start
-        ldx #CM_DISPLAYED_MAP_CHAR_WIDTH-2
+        ldx #0 + CM_DISPLAYED_MAP_X + CM_DISPLAYED_MAP_CHAR_WIDTH-2
 shift_screen_right_a_char_start2:  
         .for(var row = floor(CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT/2))+1 ; row < CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT); row++) {
                 // Pull byte from column and write it to column-1
@@ -586,16 +670,17 @@ shift_screen_right_a_char_start2:
                 sta VIC_SCREEN_CHAR_MEMORY_ADDR + (row * VIC_SCREEN_WIDTH_COLS) + 1, x
         }
         dex
-        cpx #0
+        cpx #CM_DISPLAYED_MAP_X
         bpl shift_screen_right_a_char_start2
         rts
+}
 
 //============================================================================================================================
 // shift the contents of the screen right by one column (buffer B)
 // These routines only shift the portion of the screen trhat the map area covers.
 //============================================================================================================================
-shift_screen_right_b:
-        ldx #CM_DISPLAYED_MAP_CHAR_WIDTH-2
+shift_screen_right_b: {
+        ldx #0 + CM_DISPLAYED_MAP_X + CM_DISPLAYED_MAP_CHAR_WIDTH-2
 shift_screen_right_b_char_start:  
         .for(var row = CM_DISPLAYED_MAP_Y ; row <= CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT/2); row++) {
                 // Pull byte from column+1 and write it to column
@@ -603,9 +688,9 @@ shift_screen_right_b_char_start:
                 sta VIC_SCREENB_CHAR_MEMORY_ADDR + (row * VIC_SCREEN_WIDTH_COLS) + 1, x
         }
         dex
-        cpx #0
+        cpx #CM_DISPLAYED_MAP_X
         bpl shift_screen_right_b_char_start
-        ldx #CM_DISPLAYED_MAP_CHAR_WIDTH-2
+        ldx #0 + CM_DISPLAYED_MAP_X + CM_DISPLAYED_MAP_CHAR_WIDTH-2
 shift_screen_right_b_char_start2:  
         .for(var row = floor(CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT/2))+1 ; row < CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT); row++) {
                 // Pull byte from column+1 and write it to column
@@ -613,17 +698,17 @@ shift_screen_right_b_char_start2:
                 sta VIC_SCREENB_CHAR_MEMORY_ADDR + (row * VIC_SCREEN_WIDTH_COLS) + 1, x
         }
         dex
-        cpx #0
+        cpx #CM_DISPLAYED_MAP_X
         bpl shift_screen_right_b_char_start2
         rts
-
-shift_screen_right_clr_start:
-        ldx #CM_DISPLAYED_MAP_CHAR_WIDTH-2
+}
 
 //============================================================================================================================
 // shift the contents of the screen right by one column (color memory)
 // These routines only shift the portion of the screen trhat the map area covers.
 //============================================================================================================================
+shift_screen_right_clr_start: {
+        ldx #0 + CM_DISPLAYED_MAP_X + CM_DISPLAYED_MAP_CHAR_WIDTH-2
 shift_screen_right_clr_start_loop:
         .for(var row = CM_DISPLAYED_MAP_Y ; row <= CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT/2); row++) {
                 // Pull byte from column+1 and write it to current column
@@ -631,9 +716,9 @@ shift_screen_right_clr_start_loop:
                 sta VIC_SCREEN_COLOR_MEMORY_ADDR + (row * VIC_SCREEN_WIDTH_COLS) + 1, x
         }
         dex
-        cpx #0
+        cpx #CM_DISPLAYED_MAP_X
         bpl shift_screen_right_clr_start_loop
-        ldx #CM_DISPLAYED_MAP_CHAR_WIDTH-2
+        ldx #0 + CM_DISPLAYED_MAP_X + CM_DISPLAYED_MAP_CHAR_WIDTH-2
 shift_screen_right_clr_start_loop2:
         .for(var row = floor(CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT/2))+1 ; row < CM_DISPLAYED_MAP_Y+(CM_DISPLAYED_MAP_CHAR_HEIGHT); row++) {
                 // Pull byte from column+1 and write it to current column
@@ -641,6 +726,7 @@ shift_screen_right_clr_start_loop2:
                 sta VIC_SCREEN_COLOR_MEMORY_ADDR + (row * VIC_SCREEN_WIDTH_COLS) + 1, x
         }
         dex
-        cpx #0
+        cpx #CM_DISPLAYED_MAP_X
         bpl shift_screen_right_clr_start_loop2
         rts
+}

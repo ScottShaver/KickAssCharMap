@@ -14,9 +14,6 @@
 #import "c64_constants.asm"
 #import "c64_macros.asm"
 #import "structs.asm" 
-//#import "charmap.asm" // this set of code is a basic working version of the Charmap functionality, but it is very slow.
-//#import "charmap_lut_pointers.asm" // this set of code uses lookup tables for faster pointer calculations
-//#import "charmap_lut_pointers_rev.asm" // this set of code uses lookup tables for faster pointer calculations, but reversing the loops
 #import "charmap_dblbuf.asm" // this set of code adds dubble buffering
 #import "charmap_tables.asm"
 #import "charmap_macros.asm"

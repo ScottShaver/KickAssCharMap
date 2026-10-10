@@ -12,7 +12,7 @@
 .const CM_MAP_TILE_HEIGHT = 20             // height in tiles of the map in the files
 
 // set these to how you want the map displayed on the screen
-.const CM_DISPLAYED_MAP_X = 5               // upper left corner X coordinate of the map display
+.const CM_DISPLAYED_MAP_X = 4               // upper left corner X coordinate of the map display
 .const CM_DISPLAYED_MAP_Y = 3               // upper left corner Y coordinate of the map display
 .const CM_DISPLAYED_MAP_TILE_WIDTH = 30     // width in tiles of the displayed map area
 .const CM_DISPLAYED_MAP_TILE_HEIGHT = 20    // height in tiles of the displayed map area
@@ -31,21 +31,19 @@ BasicUpstart2(start)
 // program entry point
 //----------------------------------------------------------------------------------------------------------------------------
 start:
-        DefaultGameInit()   // Initialize the game with default settings
-
+        CoarseGameInit()   // Initialize the game with default settings
         //------------------------------------------------------------------------------------------------------
         // this is how you use the map with smooth horizontal scrolling
         // when using smooth scrolling the code will automatically draw the screen when needed
         // and flip the buffers as needed to maintain smooth scrolling
         //------------------------------------------------------------------------------------------------------
 scrollLeft: // scroll the map to the left until the x position reaches 200 (map is 240 chars wide)
-.break
-        CMHorizontalSmoothScrollLeftOnePixel()  
+        CMHorizontalScrollLeft()  
         lda cm_CurrentCharScrollXPosition
-        cmp #$C8 //200
+        cmp #$D2 //210
         bne scrollLeft
 scrollRight: // scroll the map to the right until the x position reaches 0
-        CMHorizontalSmoothScrollRightOnePixel()  
+        CMHorizontalScrollRight()  
         lda cm_CurrentCharScrollXPosition
         cmp #$0
         bne scrollRight

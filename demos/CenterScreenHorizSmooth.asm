@@ -32,7 +32,7 @@ BasicUpstart2(start)
 // program entry point
 //----------------------------------------------------------------------------------------------------------------------------
 start:
-        DefaultGameInit()   // Initialize the game with default settings
+        SmoothGameInit()   // Initialize the game with default settings
 
         //------------------------------------------------------------------------------------------------------
         // this is how you use the map with smooth horizontal scrolling
@@ -40,13 +40,12 @@ start:
         // and flip the buffers as needed to maintain smooth scrolling
         //------------------------------------------------------------------------------------------------------
 scrollLeft: // scroll the map to the left until the x position reaches 200 (map is 240 chars wide)
-.break
-        CMHorizontalSmoothScrollLeftOnePixel()  
+        CMHorizontalSmoothScrollLeft()  
         lda cm_CurrentCharScrollXPosition
         cmp #$C8 //200
         bne scrollLeft
 scrollRight: // scroll the map to the right until the x position reaches 0
-        CMHorizontalSmoothScrollRightOnePixel()  
+        CMHorizontalSmoothScrollRight()  
         lda cm_CurrentCharScrollXPosition
         cmp #$0
         bne scrollRight
