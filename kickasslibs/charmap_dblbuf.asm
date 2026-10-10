@@ -1,8 +1,8 @@
 // =============================================================================
 // Primary code file for code that displays and manipulates Charmap map data.
 //
-// This is the third version that uses look up tables to avoid repeated 
-// pointer calculations inside the loops. It can be used by
+// This uses look up tables to avoid repeated pointer calculations inside the loops. 
+//It can be used by
 // uncommenting the imnport line for it in the charmap_import.asm file.  Make sure to
 // comment out the other versrion that may be being imported.
 // the generated look up tables are in the charmap_tables.asm file

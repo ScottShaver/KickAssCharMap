@@ -13,7 +13,6 @@
 
 #import "c64_constants.asm"
 #import "c64_macros.asm"
-#import "structs.asm" 
 #import "charmap_dblbuf.asm" // this set of code adds dubble buffering
 #import "charmap_tables.asm"
 #import "charmap_macros.asm"
